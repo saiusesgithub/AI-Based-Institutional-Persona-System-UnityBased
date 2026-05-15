@@ -12,12 +12,15 @@ type SocketMessage = {
   audioBase64?: string;
   viseme?: { name: string; value: number };
   message?: string;
+  state?: string;
 };
 
 export const useAvatarSocket = () => {
   const setConnectionStatus = useAppStore((state) => state.setConnectionStatus);
   const addTranscript = useAppStore((state) => state.addTranscript);
   const setViseme = useAppStore((state) => state.setViseme);
+  const setMicState = useAppStore((state) => state.setMicState);
+  const setMicError = useAppStore((state) => state.setMicError);
 
   useEffect(() => {
     const url =
@@ -35,6 +38,7 @@ export const useAvatarSocket = () => {
         try {
           const data = JSON.parse(raw) as SocketMessage;
           if (data.type === "transcript" && data.text) {
+            console.info("[stt] transcript received", data.text.length);
             addTranscript({
               role: data.role ?? "assistant",
               text: data.text,
@@ -46,8 +50,26 @@ export const useAvatarSocket = () => {
           if (data.type === "viseme" && data.viseme) {
             setViseme(data.viseme);
           }
+          if (data.type === "stt_status" && data.message) {
+            console.info("[stt] status", data.message);
+          }
+          if (data.type === "stt_status" && data.state) {
+            if (data.state === "recording") {
+              setMicState("recording");
+            } else if (data.state === "processing") {
+              setMicState("processing");
+            } else if (data.state === "empty") {
+              setMicState("listening");
+            } else if (data.state === "complete") {
+              setMicState("processing");
+            } else if (data.state === "error") {
+              setMicState("error");
+            }
+          }
           if (data.type === "error" && data.message) {
             addTranscript({ role: "system", text: data.message });
+            setMicError(data.message);
+            setMicState("error");
           }
         } catch (error) {
           addTranscript({ role: "assistant", text: raw });
@@ -60,13 +82,17 @@ export const useAvatarSocket = () => {
       unsubscribeMessage();
       release();
     };
-  }, [addTranscript, setConnectionStatus, setViseme]);
+  }, [addTranscript, setConnectionStatus, setMicError, setMicState, setViseme]);
 
   const sendMessage = (payload: Record<string, unknown>) => {
     return getSocketManager().sendJson(payload);
   };
 
-  const sendBinary = (payload: Blob) => getSocketManager().sendBinary(payload);
+  const sendBinary = (payload: Blob) => {
+    const manager = getSocketManager();
+    console.info("[ws] state", manager.getStatus());
+    return manager.sendBinaryIfOpen(payload);
+  };
 
   return { sendMessage, sendBinary, sendEvent: sendMessage };
 };

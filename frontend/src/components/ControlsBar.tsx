@@ -13,8 +13,30 @@ export const ControlsBar = ({ onSend, onToggleListening }: ControlsBarProps) => 
   const listening = useAppStore((state) => state.listening);
   const muted = useAppStore((state) => state.muted);
   const micPermission = useAppStore((state) => state.micPermission);
+  const micState = useAppStore((state) => state.micState);
+  const micError = useAppStore((state) => state.micError);
   const setInput = useAppStore((state) => state.setInput);
   const toggleMuted = useAppStore((state) => state.toggleMuted);
+
+  const micStatusLabel =
+    micState === "recording"
+      ? "Recording"
+      : micState === "processing"
+      ? "Processing"
+      : micState === "requesting_permission"
+      ? "Requesting mic"
+      : micState === "listening"
+      ? "Listening"
+      : micState === "disconnected"
+      ? "Disconnected"
+      : micState === "error"
+      ? "Mic error"
+      : micPermission === "granted"
+      ? "Mic ready"
+      : "Mic blocked";
+
+  const micStatusState =
+    micState === "error" || micPermission === "denied" ? "error" : micPermission === "granted" ? "open" : "closed";
 
   const handleSend = () => {
     if (!input.trim()) {
@@ -72,9 +94,9 @@ export const ControlsBar = ({ onSend, onToggleListening }: ControlsBarProps) => 
 
       <div className="control-group">
         <ConnectionStatus />
-        <div className="status-dot" data-state={micPermission === "granted" ? "open" : "closed"}>
+        <div className="status-dot" data-state={micStatusState} title={micError ?? undefined}>
           <span />
-          Mic {micPermission === "granted" ? "ready" : "blocked"}
+          {micStatusLabel}
         </div>
       </div>
     </section>

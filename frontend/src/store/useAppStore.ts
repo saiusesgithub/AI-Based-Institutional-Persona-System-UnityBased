@@ -16,6 +16,15 @@ type VisemeSignal = {
 
 type MicPermission = "prompt" | "granted" | "denied" | "error";
 
+type MicState =
+  | "idle"
+  | "requesting_permission"
+  | "listening"
+  | "recording"
+  | "processing"
+  | "disconnected"
+  | "error";
+
 type AppState = {
   connectionStatus: ConnectionStatus;
   transcript: TranscriptEntry[];
@@ -24,6 +33,7 @@ type AppState = {
   muted: boolean;
   viseme: VisemeSignal;
   micPermission: MicPermission;
+  micState: MicState;
   micError: string | null;
   setConnectionStatus: (status: ConnectionStatus) => void;
   addTranscript: (entry: Omit<TranscriptEntry, "id" | "timestamp">) => void;
@@ -33,6 +43,7 @@ type AppState = {
   toggleMuted: () => void;
   setViseme: (signal: VisemeSignal) => void;
   setMicPermission: (value: MicPermission) => void;
+  setMicState: (value: MicState) => void;
   setMicError: (value: string | null) => void;
 };
 
@@ -46,6 +57,7 @@ export const useAppStore = create<AppState>((set) => ({
   muted: false,
   viseme: null,
   micPermission: "prompt",
+  micState: "idle",
   micError: null,
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   addTranscript: (entry) =>
@@ -66,5 +78,6 @@ export const useAppStore = create<AppState>((set) => ({
   toggleMuted: () => set((state) => ({ muted: !state.muted })),
   setViseme: (signal) => set({ viseme: signal }),
   setMicPermission: (value) => set({ micPermission: value }),
+  setMicState: (value) => set({ micState: value }),
   setMicError: (value) => set({ micError: value }),
 }));

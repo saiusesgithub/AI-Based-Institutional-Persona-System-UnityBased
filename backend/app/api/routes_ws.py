@@ -1,4 +1,7 @@
 import json
+import logging
+import os
+import tempfile
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
@@ -8,6 +11,7 @@ from app.core.pipeline import AvatarPipeline
 from app.services.stt import create_stt_provider
 
 router = APIRouter(tags=["websocket"])
+logger = logging.getLogger(__name__)
 
 
 def _default_audio_meta() -> dict:
@@ -42,6 +46,7 @@ async def websocket_endpoint(
 
             if message.get("bytes") is not None:
                 audio_buffer.extend(message["bytes"])
+                logger.debug("stt audio chunk received: %d bytes", len(message["bytes"]))
                 continue
 
             if message.get("text") is None:
@@ -97,11 +102,19 @@ async def websocket_endpoint(
 
             if msg_type == "stt_start":
                 audio_buffer = bytearray()
+                raw_content_type = data.get("content_type") or "audio/webm"
+                content_type = raw_content_type.split(";")[0]
+                filename = data.get("filename") or "audio.webm"
+                if content_type == "audio/ogg" and not filename.endswith(".ogg"):
+                    filename = "audio.ogg"
+                if content_type == "audio/webm" and not filename.endswith(".webm"):
+                    filename = "audio.webm"
                 audio_meta = {
-                    "content_type": data.get("content_type") or "audio/webm",
-                    "filename": data.get("filename") or "audio.webm",
+                    "content_type": content_type,
+                    "filename": filename,
                     "language": data.get("language") or "auto",
                 }
+                logger.info("stt start: %s (%s)", audio_meta["filename"], audio_meta["content_type"])
                 if data.get("persona"):
                     current_persona = data.get("persona")
                 if data.get("language"):
@@ -114,15 +127,36 @@ async def websocket_endpoint(
             if msg_type == "stt_commit":
                 if not audio_buffer:
                     await send_json({"type": "stt_status", "state": "empty"})
+                    logger.warning("stt commit with empty buffer")
                     continue
 
+                await send_json({"type": "stt_status", "state": "processing"})
+                logger.info("stt commit: %d bytes", len(audio_buffer))
+                logger.info("speech recognition started")
                 provider = create_stt_provider(settings.stt_provider, settings)
-                result = await provider.transcribe(
-                    audio=bytes(audio_buffer),
-                    filename=audio_meta["filename"],
-                    content_type=audio_meta["content_type"],
-                    language=audio_meta["language"],
-                )
+                suffix = ".webm" if audio_meta["content_type"] == "audio/webm" else ".ogg"
+                tmp_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                        tmp.write(audio_buffer)
+                        tmp_path = tmp.name
+                    logger.info("stt temp audio saved: %s", tmp_path)
+                    result = await provider.transcribe(
+                        audio=bytes(audio_buffer),
+                        filename=audio_meta["filename"],
+                        content_type=audio_meta["content_type"],
+                        language=audio_meta["language"],
+                    )
+                except Exception as exc:
+                    logger.exception("stt failed")
+                    await send_json({"type": "stt_status", "state": "error", "message": str(exc)})
+                    await send_json({"type": "error", "message": str(exc)})
+                    audio_buffer = bytearray()
+                    continue
+                finally:
+                    if tmp_path and os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                logger.info("transcript generated")
                 audio_buffer = bytearray()
                 await send_json(
                     {

@@ -69,6 +69,10 @@ class AvatarSocketManager {
     return () => this.messageHandlers.delete(handler);
   }
 
+  getStatus() {
+    return this.status;
+  }
+
   sendJson(payload: Record<string, unknown>) {
     const data = JSON.stringify(payload);
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
@@ -82,6 +86,14 @@ class AvatarSocketManager {
   sendBinary(payload: Blob) {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       this.enqueue({ kind: "binary", data: payload });
+      return false;
+    }
+    this.socket.send(payload);
+    return true;
+  }
+
+  sendBinaryIfOpen(payload: Blob) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       return false;
     }
     this.socket.send(payload);

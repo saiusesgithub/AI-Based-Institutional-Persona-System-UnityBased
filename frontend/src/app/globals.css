@@ -125,6 +125,26 @@ input {
   gap: 10px;
   font-size: 15px;
   line-height: 1.6;
+  max-height: 120px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.transcript-stream::-webkit-scrollbar {
+  width: 4px;
+}
+
+.transcript-stream::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transcript-stream::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+
+.transcript-stream::-webkit-scrollbar-thumb:hover {
+  background: var(--focus);
 }
 
 .transcript-line {
