@@ -1,0 +1,244 @@
+:root {
+  --bg: #070809;
+  --bg-soft: #0e1012;
+  --ink: #f3f4f6;
+  --ink-soft: #b8bcc5;
+  --accent: #7b828f;
+  --line: rgba(255, 255, 255, 0.08);
+  --focus: rgba(255, 255, 255, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui), "Sora", system-ui, sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  letter-spacing: 0.01em;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+.app-shell {
+  position: relative;
+  flex: 1;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  padding: 28px 42px 36px;
+  gap: 18px;
+  overflow: hidden;
+}
+
+.app-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='rgba(255,255,255,0.05)' stroke-width='1'%3E%3Cpath d='M0 110h220'/%3E%3Cpath d='M110 0v220'/%3E%3Cpath d='M0 0l220 220'/%3E%3Cpath d='M220 0L0 220'/%3E%3C/g%3E%3C/svg%3E");
+  opacity: 0.25;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.stage {
+  position: relative;
+  border-radius: 24px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  animation: stageFade 0.6s ease-out;
+}
+
+.stage-inner {
+  position: absolute;
+  inset: 0;
+}
+
+.stage-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 18px 20px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: var(--ink-soft);
+}
+
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.status-dot[data-state="open"] span {
+  background: #5dd39e;
+}
+
+.status-dot[data-state="error"] span,
+.status-dot[data-state="closed"] span {
+  background: #e07a7a;
+}
+
+.transcript {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 20px;
+}
+
+.transcript h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: var(--ink-soft);
+}
+
+.transcript-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.transcript-line {
+  color: var(--ink-soft);
+}
+
+.transcript-line strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-button {
+  height: 44px;
+  min-width: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border 0.2s ease, transform 0.2s ease;
+}
+
+.control-button:hover {
+  border-color: var(--focus);
+  transform: translateY(-1px);
+}
+
+.control-button.active {
+  border-color: #5dd39e;
+}
+
+.control-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.input-shell {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 6px 6px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  gap: 8px;
+}
+
+.input-shell input {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.send-button {
+  border: none;
+  background: var(--ink);
+  color: #0b0c0d;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.send-button:disabled {
+  opacity: 0.4;
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+@keyframes stageFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    padding: 20px 20px 28px;
+  }
+
+  .transcript {
+    grid-template-columns: 1fr;
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .input-shell {
+    grid-template-columns: 1fr auto;
+  }
+}
