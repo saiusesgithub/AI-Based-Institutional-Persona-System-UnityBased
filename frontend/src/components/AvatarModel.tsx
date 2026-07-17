@@ -37,6 +37,17 @@ const EXPRESSION_MORPHS = Array.from(
   new Set(Object.values(EMOTION_EXPRESSIONS).flatMap((map) => Object.keys(map))),
 );
 
+const GAZE_MORPHS = [
+  "eyeLookInLeft",
+  "eyeLookInRight",
+  "eyeLookOutLeft",
+  "eyeLookOutRight",
+  "eyeLookUpLeft",
+  "eyeLookUpRight",
+  "eyeLookDownLeft",
+  "eyeLookDownRight",
+];
+
 type MorphMesh = THREE.Mesh & {
   morphTargetDictionary: Record<string, number>;
   morphTargetInfluences: number[];
@@ -62,10 +73,13 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   // Cloned so two personas sharing one GLB get independent morph state.
   const model = useMemo(() => scene.clone(true), [scene]);
 
-  const clips = animations.length > 0 ? animations : sharedAnimations;
+  // Shared clips win over anything baked into the model: an Avaturn export may carry a
+  // static showcase clip that would otherwise lock the avatar out of Idle/Talking motion.
+  const clips = sharedAnimations.length > 0 ? sharedAnimations : animations;
   const { actions } = useAnimations(clips, groupRef);
   const hasIdleClip = Boolean(actions["Idle"]);
   const speakingClip = useRef(false);
+  const activeTalking = useRef<string>("Talking_1");
 
   useEffect(() => {
     const entry = actions["Idle"] ?? Object.values(actions)[0];
@@ -83,6 +97,7 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
       mesh: MorphMesh;
       visemes: Map<string, number>;
       expressions: Map<string, number>;
+      gaze: Map<string, number>;
     }[] = [];
     model.traverse((child) => {
       const mesh = child as MorphMesh;
@@ -103,7 +118,13 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
           expressions.set(name, dict[name]);
         }
       });
-      bindings.push({ mesh, visemes, expressions });
+      const gaze = new Map<string, number>();
+      GAZE_MORPHS.forEach((name) => {
+        if (dict[name] !== undefined) {
+          gaze.set(name, dict[name]);
+        }
+      });
+      bindings.push({ mesh, visemes, expressions, gaze });
     });
     return bindings;
   }, [model]);
@@ -116,8 +137,12 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   const expressionWeights = useRef(new Map<string, number>());
 
   const quietSeconds = useRef(0);
+  // Where the eyes are aimed (-1..1 each axis), where they're heading, and when to retarget.
+  const gazeState = useRef({ x: 0, y: 0, targetX: 0, targetY: 0, nextShiftAt: 0 });
+  const driftState = useRef({ target: 0, nextShiftAt: 0 });
 
   useFrame((state, delta) => {
+    const now = state.clock.getElapsedTime();
     // Frame-rate independent smoothing: a fast machine shouldn't snap harder than a slow one.
     const smooth = (rate: number) => 1 - Math.exp(-rate * delta);
 
@@ -133,16 +158,20 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
     if (hasIdleClip) {
       const audiblySpeaking = sample.active || amplitude > 0.05;
       quietSeconds.current = audiblySpeaking ? 0 : quietSeconds.current + delta;
-      const talking = actions["Talking_1"] ?? actions["Talking_0"];
       const idle = actions["Idle"];
-      if (talking && idle) {
+      if (idle) {
         if (audiblySpeaking && !speakingClip.current) {
-          speakingClip.current = true;
-          idle.fadeOut(0.3);
-          talking.reset().fadeIn(0.3).play();
+          // A different gesture clip per utterance keeps long demos from looking canned.
+          const options = ["Talking_0", "Talking_1", "Talking_2"].filter((name) => actions[name]);
+          if (options.length > 0) {
+            activeTalking.current = options[Math.floor(Math.random() * options.length)];
+            speakingClip.current = true;
+            idle.fadeOut(0.3);
+            actions[activeTalking.current]?.reset().fadeIn(0.3).play();
+          }
         } else if (!audiblySpeaking && speakingClip.current && quietSeconds.current > 0.8) {
           speakingClip.current = false;
-          talking.fadeOut(0.4);
+          actions[activeTalking.current]?.fadeOut(0.4);
           idle.reset().fadeIn(0.4).play();
         }
       }
@@ -177,6 +206,30 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
 
     blinkValue.current += (blink - blinkValue.current) * smooth(35);
 
+    // Eye saccades: quick small darts most of the time, an occasional held side glance.
+    // While speaking the gaze stays near centre — people look at who they're talking to.
+    const gaze = gazeState.current;
+    if (now >= gaze.nextShiftAt) {
+      const speaking = speakingClip.current;
+      const sideGlance = !speaking && Math.random() < 0.25;
+      const range = speaking ? 0.25 : sideGlance ? 0.9 : 0.45;
+      gaze.targetX = (Math.random() * 2 - 1) * range;
+      gaze.targetY = (Math.random() * 2 - 1) * range * 0.4;
+      gaze.nextShiftAt = now + (sideGlance ? 1.2 + Math.random() : 1.5 + Math.random() * 4);
+    }
+    gaze.x += (gaze.targetX - gaze.x) * smooth(12);
+    gaze.y += (gaze.targetY - gaze.y) * smooth(12);
+
+    // Slow whole-body reorientation so idle never reads as a statue on a turntable.
+    const drift = driftState.current;
+    if (now >= drift.nextShiftAt) {
+      drift.target = (Math.random() * 2 - 1) * 0.06;
+      drift.nextShiftAt = now + 7 + Math.random() * 8;
+    }
+    if (groupRef.current) {
+      groupRef.current.rotation.y += (drift.target - groupRef.current.rotation.y) * smooth(0.8);
+    }
+
     const targetExpression = EMOTION_EXPRESSIONS[emotion] ?? {};
     EXPRESSION_MORPHS.forEach((morph) => {
       const current = expressionWeights.current.get(morph) ?? 0;
@@ -184,7 +237,26 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
       expressionWeights.current.set(morph, current + (target - current) * smooth(3));
     });
 
-    meshBindings.forEach(({ mesh, visemes, expressions }) => {
+    // Split the gaze vector into the ARKit look morphs (both eyes track together).
+    const lookLeft = Math.max(0, -gaze.x);
+    const lookRight = Math.max(0, gaze.x);
+    const lookUp = Math.max(0, gaze.y);
+    const lookDown = Math.max(0, -gaze.y);
+    const gazeValues: Record<string, number> = {
+      eyeLookOutLeft: lookLeft,
+      eyeLookInRight: lookLeft,
+      eyeLookInLeft: lookRight,
+      eyeLookOutRight: lookRight,
+      eyeLookUpLeft: lookUp,
+      eyeLookUpRight: lookUp,
+      eyeLookDownLeft: lookDown,
+      eyeLookDownRight: lookDown,
+    };
+
+    meshBindings.forEach(({ mesh, visemes, expressions, gaze: gazeMap }) => {
+      gazeMap.forEach((index, name) => {
+        mesh.morphTargetInfluences[index] = gazeValues[name] ?? 0;
+      });
       visemeWeights.current.forEach((value, id) => {
         const index = visemes.get(id);
         if (index !== undefined) {
