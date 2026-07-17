@@ -3,4 +3,6 @@ uvicorn[standard]==0.30.1
 pydantic-settings==2.3.4
 httpx==0.27.0
 python-multipart==0.0.9
-edge-tts==6.1.12
+# 6.x fails with HTTP 403 against Microsoft's current endpoint (Sec-MS-GEC token).
+# 7.x also exposes boundary="WordBoundary", which we need for lipsync timing.
+edge-tts>=7.2.0

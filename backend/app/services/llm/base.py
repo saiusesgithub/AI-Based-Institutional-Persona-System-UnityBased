@@ -17,9 +17,22 @@ class LLMProvider(ABC):
     name: str
 
     @abstractmethod
-    async def complete(self, message: str, persona: Persona, language: str = "auto") -> LLMResponse:
+    async def complete(
+        self,
+        message: str,
+        persona: Persona,
+        language: str = "auto",
+        history: list[dict[str, str]] | None = None,
+    ) -> LLMResponse:
+        """`history` is prior turns as {"role": "user"|"assistant", "content": str}."""
         raise NotImplementedError
 
-    async def stream(self, message: str, persona: Persona, language: str = "auto") -> AsyncIterator[str]:
-        response = await self.complete(message, persona, language)
+    async def stream(
+        self,
+        message: str,
+        persona: Persona,
+        language: str = "auto",
+        history: list[dict[str, str]] | None = None,
+    ) -> AsyncIterator[str]:
+        response = await self.complete(message, persona, language, history)
         yield response.text

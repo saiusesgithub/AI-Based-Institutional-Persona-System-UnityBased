@@ -3,6 +3,14 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class VisemeCue(BaseModel):
+    """One mouth shape held over a span of the audio, in seconds from audio start."""
+
+    viseme: str
+    start: float
+    end: float
+
+
 Emotion = Literal["neutral", "welcoming", "happy", "thinking", "serious", "encouraging"]
 Gesture = Literal["idle", "greeting", "explaining", "thinking", "nodding", "speaking"]
 

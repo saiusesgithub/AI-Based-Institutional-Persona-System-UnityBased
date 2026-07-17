@@ -3,6 +3,7 @@ import time
 
 from app.config import Settings
 from app.core.errors import ProviderConfigurationError, ProviderRuntimeError
+from app.core.visemes import timeline_as_dicts
 from app.models.common import Emotion, Gesture, LatencyMetrics
 from app.models.tts_models import TTSResponse
 from app.services.llm import LLMProvider, LLMResponse, create_llm_provider
@@ -19,9 +20,15 @@ class AvatarPipeline:
         self._tts_provider = create_tts_provider(settings.tts_provider, settings)
         self._tts_fallback_provider = create_tts_provider(settings.tts_fallback_provider, settings)
 
-    async def chat(self, message: str, persona_id: str | None, language: str = "auto") -> tuple[LLMResponse, Persona]:
+    async def chat(
+        self,
+        message: str,
+        persona_id: str | None,
+        language: str = "auto",
+        history: list[dict[str, str]] | None = None,
+    ) -> tuple[LLMResponse, Persona]:
         persona = self._persona_service.get(persona_id)
-        return await self._complete_with_fallback(message, persona, language), persona
+        return await self._complete_with_fallback(message, persona, language, history), persona
 
     async def tts(self, text: str, persona_id: str | None) -> TTSResponse:
         persona = self._persona_service.get(persona_id)
@@ -31,14 +38,22 @@ class AvatarPipeline:
             provider=result.provider,
             voice_id=result.voice_id,
             content_type=result.content_type,
+            visemes=timeline_as_dicts(result.visemes),
         )
 
-    async def respond(self, message: str, persona_id: str | None, language: str, include_audio: bool) -> dict:
+    async def respond(
+        self,
+        message: str,
+        persona_id: str | None,
+        language: str,
+        include_audio: bool,
+        history: list[dict[str, str]] | None = None,
+    ) -> dict:
         total_start = time.perf_counter()
         persona = self._persona_service.get(persona_id)
 
         llm_start = time.perf_counter()
-        llm_response = await self._complete_with_fallback(message, persona, language)
+        llm_response = await self._complete_with_fallback(message, persona, language, history)
         llm_ms = _elapsed_ms(llm_start)
 
         text = _trim_for_speech(llm_response.text, self._settings.max_avatar_response_chars)
@@ -57,6 +72,7 @@ class AvatarPipeline:
             "audio_base64": (
                 base64.b64encode(tts_result.audio).decode("ascii") if tts_result is not None else None
             ),
+            "visemes": timeline_as_dicts(tts_result.visemes) if tts_result is not None else [],
             "emotion": emotion,
             "gesture": gesture,
             "llm_provider": llm_response.provider,
@@ -68,11 +84,17 @@ class AvatarPipeline:
             ),
         }
 
-    async def _complete_with_fallback(self, message: str, persona: Persona, language: str) -> LLMResponse:
+    async def _complete_with_fallback(
+        self,
+        message: str,
+        persona: Persona,
+        language: str,
+        history: list[dict[str, str]] | None = None,
+    ) -> LLMResponse:
         try:
-            return await self._llm_provider.complete(message, persona, language)
+            return await self._llm_provider.complete(message, persona, language, history)
         except (ProviderConfigurationError, ProviderRuntimeError):
-            response = await self._llm_fallback_provider.complete(message, persona, language)
+            response = await self._llm_fallback_provider.complete(message, persona, language, history)
             response.fallback_used = True
             return response
 

@@ -6,6 +6,18 @@ from app.services.llm.base import LLMProvider, LLMResponse
 from app.services.persona_service import Persona
 
 
+def _to_gemini_contents(history: list[dict[str, str]]) -> list[dict]:
+    """Gemini calls the assistant role "model" and wraps text in `parts`."""
+    return [
+        {
+            "role": "model" if turn.get("role") == "assistant" else "user",
+            "parts": [{"text": turn.get("content", "")}],
+        }
+        for turn in history
+        if turn.get("content")
+    ]
+
+
 class GeminiLLMProvider(LLMProvider):
     name = "gemini"
 
@@ -14,7 +26,13 @@ class GeminiLLMProvider(LLMProvider):
         self._model = settings.gemini_model
         self._timeout = settings.request_timeout_seconds
 
-    async def complete(self, message: str, persona: Persona, language: str = "auto") -> LLMResponse:
+    async def complete(
+        self,
+        message: str,
+        persona: Persona,
+        language: str = "auto",
+        history: list[dict[str, str]] | None = None,
+    ) -> LLMResponse:
         if not self._api_key:
             raise ProviderConfigurationError("GEMINI_API_KEY is required for Gemini LLM")
 
@@ -26,7 +44,10 @@ class GeminiLLMProvider(LLMProvider):
             "systemInstruction": {
                 "parts": [{"text": self._system_prompt(persona, language)}],
             },
-            "contents": [{"role": "user", "parts": [{"text": message}]}],
+            "contents": [
+                *_to_gemini_contents(history or []),
+                {"role": "user", "parts": [{"text": message}]},
+            ],
             "generationConfig": {"temperature": 0.4, "maxOutputTokens": 220},
         }
 

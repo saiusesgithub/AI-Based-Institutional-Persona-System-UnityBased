@@ -10,7 +10,10 @@ def get_persona_service() -> PersonaService:
     return PersonaService(get_settings())
 
 
+@lru_cache
 def get_pipeline() -> AvatarPipeline:
+    # Cached: constructing the pipeline builds four provider clients, which is pure waste
+    # to repeat on every request.
     return AvatarPipeline(get_settings(), get_persona_service())
 
 

@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from app.core.visemes import VisemeEvent
 from app.services.persona_service import Persona
 
 
@@ -12,6 +13,9 @@ class TTSResult:
     voice_id: str | None = None
     content_type: str = "audio/mpeg"
     fallback_used: bool = False
+    # Empty when the provider reports no timing; the client then falls back to
+    # amplitude-driven mouth motion.
+    visemes: list[VisemeEvent] = field(default_factory=list)
 
 
 class TTSProvider(ABC):

@@ -19,6 +19,25 @@ class Persona(BaseModel):
     default_gesture: Gesture = "idle"
     metadata: dict[str, str] = Field(default_factory=dict)
 
+    # Client-facing presentation. The backend never renders; it only tells the client which
+    # model to load, so dropping in a new avatar is a one-line change here.
+    model_url: str = "/avatars/avaturn.glb"
+    accent_color: str = "#6366f1"
+    tagline: str = ""
+
+    def as_public_dict(self) -> dict:
+        """Persona fields safe to expose to the browser (no prompts, no voice ids)."""
+        return {
+            "id": self.id,
+            "display_name": self.display_name,
+            "role": self.role,
+            "model_url": self.model_url,
+            "accent_color": self.accent_color,
+            "tagline": self.tagline,
+            "default_emotion": self.default_emotion,
+            "default_gesture": self.default_gesture,
+        }
+
 
 class PersonaService:
     def __init__(self, settings: Settings):

@@ -22,8 +22,16 @@ type UseMicrophoneStreamOptions = {
   includeAudio?: boolean;
 };
 
-const SEGMENT_MS = 1500;
+/** How often audio is flushed to the server while the button is held. */
+const CHUNK_MS = 500;
 
+/**
+ * Push-to-talk microphone capture.
+ *
+ * The turn boundary is the user releasing the button — there is no timer that decides when
+ * you have stopped talking. Audio streams while held so that by release most of it is
+ * already at the server, and the transcript comes back quickly.
+ */
 export const useMicrophoneStream = ({
   sendChunk,
   sendEvent,
@@ -32,7 +40,6 @@ export const useMicrophoneStream = ({
   includeAudio = true,
 }: UseMicrophoneStreamOptions) => {
   const listening = useAppStore((state) => state.listening);
-  const muted = useAppStore((state) => state.muted);
   const setListening = useAppStore((state) => state.setListening);
   const setMicPermission = useAppStore((state) => state.setMicPermission);
   const setMicState = useAppStore((state) => state.setMicState);
@@ -40,212 +47,135 @@ export const useMicrophoneStream = ({
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const segmentTimerRef = useRef<number | null>(null);
-  const dataTimerRef = useRef<number | null>(null);
-  const audioMetaRef = useRef<{ contentType: string; filename: string } | null>(null);
-  const startInProgressRef = useRef(false);
-  const zeroChunkCountRef = useRef(0);
+  const startInProgress = useRef(false);
+  const sentAnyAudio = useRef(false);
 
-  const stopSegmentTimer = useCallback(() => {
-    if (segmentTimerRef.current) {
-      window.clearInterval(segmentTimerRef.current);
-      segmentTimerRef.current = null;
-    }
-  }, []);
+  // Latched so the recorder callbacks always see current values without being re-created.
+  const optionsRef = useRef({ persona, language, includeAudio, sendChunk, sendEvent });
+  optionsRef.current = { persona, language, includeAudio, sendChunk, sendEvent };
 
-  const stopDataTimer = useCallback(() => {
-    if (dataTimerRef.current) {
-      window.clearInterval(dataTimerRef.current);
-      dataTimerRef.current = null;
-    }
-  }, []);
-
-  const startSegmentTimer = useCallback(() => {
-    if (segmentTimerRef.current) {
-      return;
-    }
-    segmentTimerRef.current = window.setInterval(() => {
-      const meta = audioMetaRef.current;
-      if (!meta) {
-        return;
-      }
-      setMicState("processing");
-      sendEvent({ type: "stt_commit" });
-      setMicState("listening");
-      sendEvent({
-        type: "stt_start",
-        content_type: meta.contentType,
-        filename: meta.filename,
-        language,
-        persona,
-        include_audio: includeAudio,
-      });
-    }, SEGMENT_MS);
-  }, [includeAudio, language, persona, sendEvent, setMicState]);
-
-  const stop = useCallback(() => {
-    recorderRef.current?.stop();
+  const teardown = useCallback(() => {
     recorderRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-    setListening(false);
-    setMicState("idle");
-    sendEvent({ type: "stt_commit" });
-    stopSegmentTimer();
-    stopDataTimer();
-  }, [sendEvent, setListening, setMicState, stopDataTimer, stopSegmentTimer]);
+  }, []);
 
-  const start = useCallback(async () => {
-    if (listening || startInProgressRef.current) {
+  const stop = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
       return;
     }
-    startInProgressRef.current = true;
+    // The commit is sent from onstop, not here: stop() only *schedules* the final
+    // dataavailable, so committing now would race the last chunk and clip the sentence.
+    recorder.stop();
+    setListening(false);
+  }, [setListening]);
+
+  const start = useCallback(async () => {
+    if (recorderRef.current || startInProgress.current) {
+      return;
+    }
+    startInProgress.current = true;
+
     try {
       if (typeof window !== "undefined" && !window.isSecureContext) {
-        setListening(false);
         setMicPermission("denied");
         setMicError("Microphone requires HTTPS or localhost.");
         setMicState("error");
-        startInProgressRef.current = false;
         return;
       }
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
         setMicPermission("error");
         setMicError("Browser does not support microphone recording.");
         setMicState("error");
-        startInProgressRef.current = false;
         return;
       }
 
       setMicState("requesting_permission");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      console.info("[mic] permission granted");
-      console.info("[mic] audio stream created");
       setMicPermission("granted");
       setMicError(null);
 
-      stream.getTracks().forEach((track) => {
-        track.enabled = true;
-        const settings = track.getSettings?.();
-        console.info("[mic] track state", {
-          enabled: track.enabled,
-          muted: track.muted,
-          readyState: track.readyState,
-          settings,
-        });
-        track.onended = () => {
-          setMicState("disconnected");
-          stop();
-        };
-      });
-      stream.oninactive = () => {
-        setMicState("disconnected");
-        stop();
-      };
-
       const mimeType = pickMimeType();
-      console.info("[mic] selected mime", mimeType ?? "default");
       let recorder: MediaRecorder;
       try {
         recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      } catch (initError) {
+      } catch {
         setMicPermission("error");
         setMicError("MediaRecorder failed to initialize.");
         setMicState("error");
-        startInProgressRef.current = false;
+        teardown();
         return;
       }
       recorderRef.current = recorder;
+
       const contentType = (mimeType || "audio/webm").split(";")[0];
       const filename = contentType.includes("ogg") ? "audio.ogg" : "audio.webm";
-      audioMetaRef.current = { contentType, filename };
+      sentAnyAudio.current = false;
 
-      sendEvent({
+      const { sendEvent: emit, persona: p, language: lang, includeAudio: audio } = optionsRef.current;
+      emit({
         type: "stt_start",
         content_type: contentType,
         filename,
-        language,
-        persona,
-        include_audio: includeAudio,
+        language: lang,
+        persona: p,
+        include_audio: audio,
       });
 
-      setMicState("listening");
-
       recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          zeroChunkCountRef.current = 0;
-          console.info("[mic] chunk received", event.data.size);
-          if (muted) {
-            console.info("[mic] muted, skipping send");
-            return;
-          }
-          console.info("[mic] sending audio chunk");
-          const sent = sendChunk(event.data);
-          console.info("[mic] chunk sent", sent);
-          if (!sent) {
-            console.info("[mic] websocket not open, chunk dropped");
-          }
-        } else {
-          zeroChunkCountRef.current += 1;
-          console.info("[mic] chunk size 0", zeroChunkCountRef.current);
-          if (zeroChunkCountRef.current >= 3) {
-            setMicError("No audio captured from microphone.");
-            setMicState("error");
-          }
+        if (event.data.size === 0) {
+          return;
         }
+        if (optionsRef.current.sendChunk(event.data)) {
+          sentAnyAudio.current = true;
+        }
+      };
+
+      recorder.onstart = () => {
+        setMicState("recording");
+        setListening(true);
       };
 
       recorder.onerror = () => {
         setMicPermission("error");
         setMicError("Recorder error");
         setMicState("error");
+        teardown();
       };
 
-      recorder.onstart = () => {
-        console.info("[mic] recording started");
-        setMicState("recording");
-      };
-
+      // Fires after the final ondataavailable, so the whole utterance is on the wire.
       recorder.onstop = () => {
-        console.info("[mic] recording stopped");
-        stopSegmentTimer();
+        if (sentAnyAudio.current) {
+          setMicState("processing");
+          optionsRef.current.sendEvent({ type: "stt_commit" });
+        } else {
+          setMicError("No audio captured from microphone.");
+          setMicState("idle");
+        }
+        setListening(false);
+        teardown();
       };
 
-      zeroChunkCountRef.current = 0;
-      recorder.start();
-      dataTimerRef.current = window.setInterval(() => {
-        recorder.requestData();
-      }, 1000);
-      setListening(true);
-      startSegmentTimer();
+      stream.getTracks().forEach((track) => {
+        track.onended = () => stop();
+      });
+
+      // Timeslice streams audio while held instead of withholding it until release.
+      recorder.start(CHUNK_MS);
     } catch (error) {
-      setListening(false);
       const err = error as { name?: string } | undefined;
       const denied = err?.name === "NotAllowedError" || err?.name === "SecurityError";
-      const notFound = err?.name === "NotFoundError";
       setMicPermission(denied ? "denied" : "error");
-      setMicError(notFound ? "No microphone device found." : "Microphone permission denied");
+      setMicError(err?.name === "NotFoundError" ? "No microphone device found." : "Microphone permission denied");
       setMicState("error");
+      setListening(false);
+      teardown();
     } finally {
-      startInProgressRef.current = false;
+      startInProgress.current = false;
     }
-  }, [
-    includeAudio,
-    language,
-    listening,
-    muted,
-    persona,
-    sendChunk,
-    sendEvent,
-    setListening,
-    setMicPermission,
-    setMicState,
-    setMicError,
-    startSegmentTimer,
-    stop,
-    stopSegmentTimer,
-  ]);
+  }, [setListening, setMicError, setMicPermission, setMicState, stop, teardown]);
 
   const toggle = useCallback(() => {
     if (listening) {
@@ -256,12 +186,11 @@ export const useMicrophoneStream = ({
   }, [listening, start, stop]);
 
   useEffect(() => {
-    if (muted && listening) {
-      stop();
-    }
-  }, [muted, listening, stop]);
-
-  useEffect(() => () => stop(), [stop]);
+    return () => {
+      recorderRef.current?.stop();
+      teardown();
+    };
+  }, [teardown]);
 
   return { start, stop, toggle };
 };

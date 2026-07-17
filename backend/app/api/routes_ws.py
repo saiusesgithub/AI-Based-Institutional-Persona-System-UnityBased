@@ -1,12 +1,11 @@
 import json
 import logging
-import os
-import tempfile
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
 from app.api.deps import get_app_settings, get_pipeline
 from app.config import Settings
+from app.core.conversation import Conversation
 from app.core.pipeline import AvatarPipeline
 from app.services.stt import create_stt_provider
 
@@ -31,14 +30,63 @@ async def websocket_endpoint(
     await websocket.accept()
     audio_buffer = bytearray()
     audio_meta = _default_audio_meta()
-    current_persona: str | None = None
     current_language: str = "auto"
     include_audio: bool = True
+    # One conversation per connection: memory lives as long as the visitor's session.
+    conversation = Conversation(persona_id=settings.default_persona)
+    stt_provider = create_stt_provider(settings.stt_provider, settings)
 
     async def send_json(payload: dict) -> None:
         await websocket.send_text(json.dumps(payload))
 
-    await send_json({"type": "status", "state": "ready"})
+    def apply_options(data: dict) -> None:
+        nonlocal current_language, include_audio
+        if data.get("persona"):
+            # Switching persona clears history so the new persona doesn't inherit
+            # things it never said.
+            conversation.switch_persona(data["persona"])
+        if data.get("language"):
+            current_language = data["language"]
+        if data.get("include_audio") is not None:
+            include_audio = bool(data["include_audio"])
+
+    async def run_turn(message: str) -> None:
+        """Answer one user message: LLM → TTS → transcript, audio + visemes, metadata."""
+        history = conversation.history()
+        response = await pipeline.respond(
+            message=message,
+            persona_id=conversation.persona_id,
+            language=current_language,
+            include_audio=include_audio,
+            history=history,
+        )
+        conversation.add("user", message)
+        conversation.add("assistant", response["text"])
+
+        await send_json({"type": "transcript", "role": "assistant", "text": response["text"]})
+        if response.get("audio_base64"):
+            await send_json(
+                {
+                    "type": "audio",
+                    "audioBase64": response["audio_base64"],
+                    "contentType": "audio/mpeg",
+                    # Timed mouth shapes for this exact clip. Empty means the client
+                    # should fall back to amplitude-driven motion.
+                    "visemes": response.get("visemes", []),
+                }
+            )
+        await send_json(
+            {
+                "type": "metadata",
+                "persona": response.get("persona"),
+                "emotion": response.get("emotion"),
+                "gesture": response.get("gesture"),
+                "llm_provider": response.get("llm_provider"),
+                "tts_provider": response.get("tts_provider"),
+            }
+        )
+
+    await send_json({"type": "status", "state": "ready", "persona": conversation.persona_id})
 
     try:
         while True:
@@ -46,15 +94,13 @@ async def websocket_endpoint(
 
             if message.get("bytes") is not None:
                 audio_buffer.extend(message["bytes"])
-                logger.debug("stt audio chunk received: %d bytes", len(message["bytes"]))
                 continue
 
             if message.get("text") is None:
                 continue
 
-            raw = message["text"]
             try:
-                data = json.loads(raw)
+                data = json.loads(message["text"])
             except json.JSONDecodeError:
                 await send_json({"type": "error", "message": "Invalid JSON payload."})
                 continue
@@ -62,48 +108,27 @@ async def websocket_endpoint(
             msg_type = data.get("type")
 
             if msg_type == "chat":
-                if data.get("persona"):
-                    current_persona = data.get("persona")
-                if data.get("language"):
-                    current_language = data.get("language")
-                if data.get("include_audio") is not None:
-                    include_audio = bool(data.get("include_audio"))
-                response = await pipeline.respond(
-                    message=data.get("message", ""),
-                    persona_id=current_persona,
-                    language=current_language,
-                    include_audio=include_audio,
-                )
-                await send_json(
-                    {
-                        "type": "transcript",
-                        "role": "assistant",
-                        "text": response["text"],
-                    }
-                )
-                if response.get("audio_base64"):
-                    await send_json(
-                        {
-                            "type": "audio",
-                            "audioBase64": response["audio_base64"],
-                            "contentType": "audio/mpeg",
-                        }
-                    )
-                await send_json(
-                    {
-                        "type": "metadata",
-                        "emotion": response.get("emotion"),
-                        "gesture": response.get("gesture"),
-                        "llm_provider": response.get("llm_provider"),
-                        "tts_provider": response.get("tts_provider"),
-                    }
-                )
+                apply_options(data)
+                try:
+                    await run_turn(data.get("message", ""))
+                except Exception as exc:
+                    logger.exception("chat turn failed")
+                    await send_json({"type": "error", "message": str(exc)})
+                continue
+
+            if msg_type == "persona":
+                apply_options(data)
+                await send_json({"type": "status", "state": "ready", "persona": conversation.persona_id})
+                continue
+
+            if msg_type == "reset":
+                conversation.reset()
+                await send_json({"type": "status", "state": "ready", "persona": conversation.persona_id})
                 continue
 
             if msg_type == "stt_start":
                 audio_buffer = bytearray()
-                raw_content_type = data.get("content_type") or "audio/webm"
-                content_type = raw_content_type.split(";")[0]
+                content_type = (data.get("content_type") or "audio/webm").split(";")[0]
                 filename = data.get("filename") or "audio.webm"
                 if content_type == "audio/ogg" and not filename.endswith(".ogg"):
                     filename = "audio.ogg"
@@ -114,34 +139,19 @@ async def websocket_endpoint(
                     "filename": filename,
                     "language": data.get("language") or "auto",
                 }
-                logger.info("stt start: %s (%s)", audio_meta["filename"], audio_meta["content_type"])
-                if data.get("persona"):
-                    current_persona = data.get("persona")
-                if data.get("language"):
-                    current_language = data.get("language")
-                if data.get("include_audio") is not None:
-                    include_audio = bool(data.get("include_audio"))
+                apply_options(data)
                 await send_json({"type": "stt_status", "state": "recording"})
                 continue
 
             if msg_type == "stt_commit":
                 if not audio_buffer:
                     await send_json({"type": "stt_status", "state": "empty"})
-                    logger.warning("stt commit with empty buffer")
                     continue
 
                 await send_json({"type": "stt_status", "state": "processing"})
                 logger.info("stt commit: %d bytes", len(audio_buffer))
-                logger.info("speech recognition started")
-                provider = create_stt_provider(settings.stt_provider, settings)
-                suffix = ".webm" if audio_meta["content_type"] == "audio/webm" else ".ogg"
-                tmp_path = None
                 try:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                        tmp.write(audio_buffer)
-                        tmp_path = tmp.name
-                    logger.info("stt temp audio saved: %s", tmp_path)
-                    result = await provider.transcribe(
+                    result = await stt_provider.transcribe(
                         audio=bytes(audio_buffer),
                         filename=audio_meta["filename"],
                         content_type=audio_meta["content_type"],
@@ -154,46 +164,20 @@ async def websocket_endpoint(
                     audio_buffer = bytearray()
                     continue
                 finally:
-                    if tmp_path and os.path.exists(tmp_path):
-                        os.unlink(tmp_path)
-                logger.info("transcript generated")
-                audio_buffer = bytearray()
-                await send_json(
-                    {
-                        "type": "transcript",
-                        "role": "user",
-                        "text": result.transcript,
-                    }
-                )
-                if result.transcript.strip():
-                    response = await pipeline.respond(
-                        message=result.transcript,
-                        persona_id=current_persona,
-                        language=current_language,
-                        include_audio=include_audio,
-                    )
-                    await send_json(
-                        {
-                            "type": "transcript",
-                            "role": "assistant",
-                            "text": response["text"],
-                        }
-                    )
-                    if response.get("audio_base64"):
-                        await send_json(
-                            {
-                                "type": "audio",
-                                "audioBase64": response["audio_base64"],
-                                "contentType": "audio/mpeg",
-                            }
-                        )
-                await send_json(
-                    {
-                        "type": "stt_status",
-                        "state": "complete",
-                        "provider": result.provider,
-                    }
-                )
+                    audio_buffer = bytearray()
+
+                transcript = result.transcript.strip()
+                if not transcript:
+                    await send_json({"type": "stt_status", "state": "empty"})
+                    continue
+
+                await send_json({"type": "transcript", "role": "user", "text": transcript})
+                try:
+                    await run_turn(transcript)
+                except Exception as exc:
+                    logger.exception("stt turn failed")
+                    await send_json({"type": "error", "message": str(exc)})
+                await send_json({"type": "stt_status", "state": "complete", "provider": result.provider})
                 continue
 
             if msg_type == "ping":
@@ -204,7 +188,12 @@ async def websocket_endpoint(
 
     except WebSocketDisconnect:
         return
+    except RuntimeError:
+        # Starlette raises this when receive() is called after the peer has gone away.
+        # That is a normal hangup, not a failure.
+        return
     except Exception as exc:
+        logger.exception("websocket failed")
         try:
             await send_json({"type": "error", "message": str(exc)})
         except RuntimeError:

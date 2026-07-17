@@ -14,7 +14,13 @@ class GroqLLMProvider(LLMProvider):
         self._model = settings.groq_llm_model
         self._timeout = settings.request_timeout_seconds
 
-    async def complete(self, message: str, persona: Persona, language: str = "auto") -> LLMResponse:
+    async def complete(
+        self,
+        message: str,
+        persona: Persona,
+        language: str = "auto",
+        history: list[dict[str, str]] | None = None,
+    ) -> LLMResponse:
         if not self._api_key:
             raise ProviderConfigurationError("GROQ_API_KEY is required for Groq LLM")
 
@@ -22,6 +28,7 @@ class GroqLLMProvider(LLMProvider):
             "model": self._model,
             "messages": [
                 {"role": "system", "content": self._system_prompt(persona, language)},
+                *(history or []),
                 {"role": "user", "content": message},
             ],
             "temperature": 0.4,

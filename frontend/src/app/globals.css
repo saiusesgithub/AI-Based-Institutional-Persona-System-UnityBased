@@ -38,7 +38,8 @@ input {
   position: relative;
   flex: 1;
   display: grid;
-  grid-template-rows: 1fr auto auto;
+  /* stage / persona switcher / transcript / controls */
+  grid-template-rows: 1fr auto auto auto;
   padding: 28px 42px 36px;
   gap: 18px;
   overflow: hidden;
@@ -80,6 +81,99 @@ input {
   text-transform: uppercase;
   letter-spacing: 0.24em;
   color: var(--ink-soft);
+}
+
+.stage-overlay-name {
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+
+.stage-overlay-role {
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: none;
+  opacity: 0.75;
+}
+
+.stage-overlay-emotion {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.persona-switcher {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.persona-chip {
+  --persona-accent: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.persona-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--focus);
+}
+
+.persona-chip:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.persona-chip.is-active {
+  border-color: var(--persona-accent);
+  background: color-mix(in srgb, var(--persona-accent) 14%, var(--bg-soft));
+}
+
+.persona-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--persona-accent);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.persona-chip.is-active .persona-chip-dot {
+  opacity: 1;
+  box-shadow: 0 0 10px var(--persona-accent);
+}
+
+.persona-chip-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.persona-chip-name {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.persona-chip-role {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  opacity: 0.8;
+}
+
+@media (max-width: 640px) {
+  .persona-chip-role {
+    display: none;
+  }
 }
 
 .status-dot {
