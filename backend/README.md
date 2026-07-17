@@ -1,17 +1,20 @@
 # AI Institutional Persona Backend
 
-Clean FastAPI orchestration backend for a Unity digital human. It handles persona-aware LLM responses, STT, TTS, and avatar metadata. Unity remains responsible for rendering, audio playback, gestures, emotions, and realtime lipsync.
+Clean FastAPI orchestration backend for a browser-based digital human. It handles persona-aware LLM responses, STT, TTS, and avatar metadata. The client (`frontend/`, Next.js + React Three Fiber) remains responsible for rendering, audio playback, gestures, emotions, and realtime lipsync.
 
 This backend intentionally does not use Rhubarb, file-based lipsync, phoneme files, or video generation.
+
+See `../CONTEXT.md` for the full system architecture and current status.
 
 ## Endpoints
 
 - `GET /health`
 - `POST /chat`
-- `POST /chat/stream`
+- `POST /chat/stream` — SSE-shaped, but not yet incremental (see CONTEXT.md gaps)
 - `POST /stt`
 - `POST /tts`
 - `POST /avatar/respond`
+- `WS /ws` — what the frontend actually uses; protocol documented in `../CONTEXT.md`
 
 ## Run locally
 
@@ -20,7 +23,7 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-copy .env.example .env
+# create .env with the keys listed under "Provider configuration" below
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -61,7 +64,7 @@ Each persona can define:
 - `default_emotion`
 - `default_gesture`
 
-## Unity contract
+## Client contract
 
 `POST /avatar/respond` accepts:
 
@@ -76,4 +79,4 @@ Each persona can define:
 
 It returns text, optional base64 audio, provider names, emotion and gesture hints, and latency metrics.
 
-For realtime lipsync, Unity should drive blendshapes from the played audio using SALSA, Oculus LipSync, or another realtime audio-driven system.
+For realtime lipsync, the browser client drives GLB morph targets from the played audio using Web Audio (`AnalyserNode` amplitude today; viseme-driven is planned).

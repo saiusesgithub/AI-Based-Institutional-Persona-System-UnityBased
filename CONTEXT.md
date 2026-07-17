@@ -1,600 +1,272 @@
+# AI Institutional Persona System — Project Context
 
-# AI Institutional Persona System — Backend Context / PRD
-
-## Project Vision
-
-We are building an AI-powered institutional digital human system for college/demo/kiosk use.
-
-The first persona/avatar is the HOD. Later the system should support multiple institutional personas such as:
-- HOD
-- Chairman
-- Reception Assistant
-- Faculty Member
-- Department Guide
-
-The goal is to create an interactive AI persona that can:
-- listen to user speech
-- understand questions
-- respond using an LLM
-- speak using cloned or natural voice
-- animate a 3D avatar in Unity
-- support future multilingual interactions
-
-This is NOT a video-generation system.
-This is a realtime digital human / AI avatar assistant system.
+Single source of truth for what this project **is today**. Supersedes the old Unity PRD and
+the separate frontend brief (both were contradictory and out of date; see History at the bottom).
 
 ---
 
-## Current Direction
+## What this is
 
-We previously experimented with:
-- Three.js / React avatar frontend
-- Rhubarb lip sync
-- browser speech synthesis
-- D-ID / SadTalker / Wav2Lip style ideas
+An AI-powered institutional digital human for college kiosk / demo use. A realistic 3D avatar
+of an institutional persona (currently the HOD, **Dr. Obulesh**) listens to a visitor, answers
+with an LLM, speaks in a cloned voice, and animates while talking.
 
-We are now moving to a better architecture:
+It is a **realtime conversational avatar**. It is not a video-generation system.
+
+## Stack — decided and in use
+
+| Layer | Choice |
+| --- | --- |
+| Frontend | Next.js 16 (App Router) + React 19, TypeScript, Tailwind 4 |
+| 3D | React Three Fiber 9 + drei + three 0.184, GLB avatar with morph targets |
+| State | Zustand |
+| Transport | WebSocket (primary), REST available |
+| Backend | Python 3.13 + FastAPI + Pydantic v2 + httpx |
+| LLM | Groq primary (`llama-3.1-8b-instant`), Gemini fallback |
+| STT | Groq Whisper (`whisper-large-v3-turbo`) |
+| TTS | ElevenLabs primary (cloned voice), Edge TTS dev fallback |
+
+**Unity was evaluated and dropped.** The system is browser-based: easier deploy, faster
+iteration, simpler AI integration. The repo folder name still says "Unity" — ignore it. Any
+doc, comment, or README that describes Unity as the client is stale.
+
+Because the client is the browser, lipsync happens in the browser (Web Audio + morph targets),
+not via SALSA/Oculus LipSync. Rhubarb is still rejected: it needs full audio, file writes, and
+offline phoneme extraction, which defeats realtime.
+
+---
+
+## Architecture
 
 ```text
-Unity Frontend
-+
-FastAPI AI Orchestration Backend
-````
-
-Unity will handle:
-
-* 3D avatar rendering
-* animations
-* gestures
-* emotions
-* lipsync
-* audio playback
-* user-facing UI
-
-Backend will handle:
-
-* speech-to-text
-* LLM response generation
-* TTS generation / streaming
-* persona prompts
-* response metadata
-* emotion / gesture hints
-* API orchestration
-
----
-
-## Important Architecture Decision
-
-Do NOT use Rhubarb in the new backend.
-
-Reason:
-Rhubarb requires full audio generation, file saving, WAV conversion, phoneme extraction, and delayed playback.
-That is not ideal for realtime conversational avatars.
-
-Instead, the new backend should be streaming-first and Unity should handle realtime lipsync locally using:
-
-* SALSA LipSync
-* Oculus LipSync
-* audio-driven blendshape systems
-* future realtime viseme systems
-
-Backend should NOT generate lip sync files.
-
----
-
-## Backend Responsibilities
-
-The backend should be a clean, standalone FastAPI service.
-
-It should NOT be tightly coupled to:
-
-* React frontend
-* Unity scene implementation
-* specific UI logic
-
-It should expose clean APIs that any frontend can consume.
-
-Primary backend responsibilities:
-
-1. Receive user text or audio
-2. Convert speech to text using STT
-3. Generate persona-aware AI response
-4. Generate voice/audio using TTS
-5. Stream or return audio to Unity
-6. Return metadata:
-
-   * text response
-   * persona
-   * emotion hint
-   * gesture hint
-   * provider info
-   * latency metrics
-
----
-
-## Preferred Backend Stack
-
-* Python
-* FastAPI
-* Pydantic
-* dotenv / pydantic-settings
-* Groq for fast LLM responses
-* Gemini as fallback LLM provider
-* Groq Whisper or equivalent for STT
-* ElevenLabs for TTS and voice cloning
-* Edge TTS only as fallback/dev mode
-* Persona config using JSON
-
----
-
-## Provider Strategy
-
-All major AI services must be provider-based and swappable.
-
-Backend should support:
-
-### LLM Providers
-
-* Groq primary
-* Gemini fallback
-
-### STT Providers
-
-* Groq Whisper primary
-* Browser/WebSpeech is NOT part of backend
-* Future support: Deepgram / OpenAI / local Whisper
-
-### TTS Providers
-
-* ElevenLabs primary
-* Edge TTS fallback for dev/testing
-
-Provider selection should be controlled by `.env`.
-
-Example:
-
-```env
-LLM_PROVIDER=groq
-STT_PROVIDER=groq_whisper
-TTS_PROVIDER=elevenlabs
+Browser (Next.js + R3F)                      FastAPI backend
+─────────────────────────                    ────────────────────────
+GET /personas ───────────────────────────►  persona roster (id, model_url, colour)
+mic → MediaRecorder (webm/opus)
+  └── binary chunks ──────► WS /ws ──► buffer
+      {"type":"stt_start"}                   └─► Groq Whisper ──► transcript
+      {"type":"stt_commit"}                      └─► Groq LLM + history (Gemini fallback)
+                                                     └─► TTS with timing:
+                                                         ElevenLabs /with-timestamps
+                                                           → char alignment
+                                                         Edge TTS WordBoundary
+                                                           → word timings
+                                                            └─► visemes.py → cue timeline
+  ◄── {"type":"transcript"}  ◄──────────────────────┘
+  ◄── {"type":"audio", base64 mp3, visemes:[{viseme,start,end}]}
+  ◄── {"type":"metadata", emotion, gesture}
+      │
+      ├─► Web Audio decode → play; audio clock drives lipsyncTrack.sample(t)
+      │      └─► 15 viseme morph targets + jaw coupling + coarticulation blending
+      └─► AnalyserNode RMS amplitude → fallback mouth when no timeline
 ```
 
----
-
-## Streaming-First Philosophy
-
-The backend should be designed for low perceived latency.
-
-Preferred future flow:
-
-```text
-Unity records user speech
-→ Backend STT
-→ LLM streaming response
-→ ElevenLabs streaming TTS
-→ Unity plays audio as it arrives
-→ Unity handles realtime lipsync locally
-```
-
-Initial version may return complete audio if streaming is complex, but the architecture should not block future streaming.
-
-Avoid designs that depend on:
-
-* temporary audio files as the main workflow
-* offline phoneme generation
-* precomputed video
-* Rhubarb-style delayed lipsync
-
----
-
-## Unity Integration Contract
-
-Unity should eventually call backend endpoints like:
-
-### Text chat
-
-```http
-POST /chat
-```
-
-### Speech-to-text
-
-```http
-POST /stt
-```
-
-### Text-to-speech
-
-```http
-POST /tts
-```
-
-### Full avatar response
-
-```http
-POST /avatar/respond
-```
-
-Expected final response shape:
-
-```json
-{
-  "text": "Welcome to the Department of IT. How can I help you?",
-  "persona": "hod",
-  "audio_url": "optional",
-  "audio_base64": "optional",
-  "emotion": "welcoming",
-  "gesture": "greeting",
-  "llm_provider": "groq",
-  "tts_provider": "elevenlabs",
-  "latency": {
-    "llm_ms": 420,
-    "tts_ms": 900,
-    "total_ms": 1450
-  }
-}
-```
-
-For streaming TTS, the backend may later expose:
-
-* WebSocket endpoint
-* Server-Sent Events endpoint
-* chunked audio endpoint
-
----
-
-## Persona System
-
-Personas should be defined in JSON.
-
-Each persona should include:
-
-```json
-{
-  "id": "hod",
-  "display_name": "HOD",
-  "role": "Head of Department",
-  "speaking_style": "professional, calm, concise, encouraging",
-  "system_prompt": "You are the Head of Department speaking to students and visitors...",
-  "voice_id": "ELEVENLABS_VOICE_ID_HERE",
-  "default_emotion": "neutral",
-  "default_gesture": "idle"
-}
-```
-
-Response style should be:
-
-* short
-* spoken-friendly
-* natural
-* institutional
-* not overly verbose
-* suitable for avatar speech
-
-Avoid long paragraphs.
-
----
-
-## Emotion and Gesture Metadata
-
-Backend should optionally classify or infer simple metadata from generated response.
-
-Supported emotions:
-
-* neutral
-* welcoming
-* happy
-* thinking
-* serious
-* encouraging
-
-Supported gestures:
-
-* idle
-* greeting
-* explaining
-* thinking
-* nodding
-* speaking
-
-This metadata will help Unity choose animation states.
-
-Backend does NOT animate directly.
-Backend only sends hints.
-
----
-
-## STT Requirements
-
-Backend should support audio upload from Unity.
-
-Initial endpoint:
-
-```http
-POST /stt
-multipart/form-data
-audio_file=<wav/mp3/webm>
-language=auto
-```
-
-Expected output:
-
-```json
-{
-  "transcript": "What are the placements in IT department?",
-  "language": "en",
-  "provider": "groq_whisper"
-}
-```
-
-Multilingual support should be considered from the beginning.
-
-Target languages:
-
-* English
-* Hindi
-* Telugu
-* mixed English/Hindi/Telugu if possible
-
----
-
-## TTS Requirements
-
-ElevenLabs is the main TTS provider.
-
-Requirements:
-
-* support voice IDs per persona
-* support cloned voice
-* support standard voice fallback
-* return audio in a Unity-friendly format
-* future support for streaming audio
-
-Initial endpoint:
-
-```http
-POST /tts
-```
-
-Input:
-
-```json
-{
-  "text": "Hello, welcome to our department.",
-  "persona": "hod"
-}
-```
-
-Output:
-
-```json
-{
-  "audio_url": "optional",
-  "audio_base64": "optional",
-  "provider": "elevenlabs",
-  "voice_id": "..."
-}
-```
-
-Implementation may start with full audio response, but service should be written so streaming can be added later.
-
----
-
-## LLM Requirements
-
-Primary LLM provider should be Groq because fast response is important for avatar systems.
-
-Gemini should be supported as fallback.
-
-LLM output should be optimized for speech:
-
-* concise
-* clear
-* friendly
-* not too long
-* no markdown unless specifically needed
-* no huge lists during speech
-
-The LLM provider should support both:
-
-* complete response
-* streaming response
-
----
-
-## Backend Folder Structure
-
-Recommended structure:
+Lipsync is **timeline-driven, not amplitude-driven**. Amplitude only knows *how loud*; it can
+never know *which sound*, which is why the old mouth flapped. The provider tells us when each
+character or word is spoken, `visemes.py` maps those to mouth shapes, and the client samples
+that timeline against the audio clock. Amplitude remains only as a fallback for providers
+that report no timing.
+
+API keys live only in the backend `.env`. The browser never sees them. Keep it that way.
+
+### Repo layout
 
 ```text
 backend/
   app/
-    main.py
-    config.py
-
+    main.py              FastAPI app factory, CORS, router mounting
+    config.py            pydantic-settings; every provider choice is env-driven
     api/
-      routes_health.py
-      routes_chat.py
-      routes_stt.py
-      routes_tts.py
-      routes_avatar.py
-
+      deps.py            DI: settings, persona service, pipeline
+      routes_health.py   GET  /health   → status + configured providers + persona ids
+      routes_chat.py     POST /chat, POST /chat/stream (SSE)
+      routes_stt.py      POST /stt      (multipart audio → transcript)
+      routes_tts.py      POST /tts      (text → base64 audio)
+      routes_avatar.py   POST /avatar/respond  (full pipeline, one call)
+      routes_ws.py       WS   /ws       ← what the frontend actually uses
     core/
-      pipeline.py
-      errors.py
-      logging_config.py
-
-    models/
-      chat_models.py
-      stt_models.py
-      tts_models.py
-      avatar_models.py
-
+      pipeline.py        AvatarPipeline: LLM→TTS orchestration, fallbacks, emotion/gesture hints
+      errors.py          provider errors → HTTP exceptions
     services/
-      persona_service.py
+      persona_service.py loads + validates personas.json
+      llm/  base, factory, groq_provider, gemini_provider
+      stt/  base, factory, groq_whisper_provider
+      tts/  base, factory, elevenlabs_provider, edge_tts_provider
+    data/personas.json   persona definitions (id, prompt, voice_id, defaults)
 
-      llm/
-        base.py
-        groq_provider.py
-        gemini_provider.py
-
-      stt/
-        base.py
-        groq_whisper_provider.py
-
-      tts/
-        base.py
-        elevenlabs_provider.py
-        edge_tts_provider.py
-
-    data/
-      personas.json
-
-  requirements.txt
-  .env.example
-  README.md
+frontend/src/
+  app/page.tsx, layout.tsx, globals.css
+  components/
+    MainView.tsx         wires socket + mic + UI; hold "A" = push-to-talk
+    Stage.tsx, AvatarCanvas.tsx, StageOverlay.tsx
+    AvatarModel.tsx      GLB load, morph targets, lipsync, procedural gestures
+    TranscriptPanel.tsx, ControlsBar.tsx, ConnectionStatus.tsx
+  hooks/
+    useAvatarSocket.ts   WS message routing → store + audio playback
+    useMicrophoneStream.ts  MediaRecorder capture and segmenting
+    useBlink.ts
+  lib/
+    socketManager.ts     singleton WS, reconnect w/ backoff, send queue, heartbeat
+    audioEngine.ts       base64 → decode → AnalyserNode → amplitude
+  store/
+    useAppStore.ts       connection, transcript, mic state, viseme
+    useAudioStore.ts     amplitude, speaking
+  public/avatars/
+    hod.glb, avaturn.glb (~14 MB each, Avaturn T2)
 ```
+
+Every provider sits behind a `base.py` interface plus a `factory.py`. Adding a provider means
+adding one file and one factory entry — do not scatter provider logic into routes or pipeline.
 
 ---
 
-## Main Backend Endpoints
+## WebSocket protocol (`/ws`)
 
-### Health
+Client → server:
 
-```http
-GET /health
-```
+| Message | Purpose |
+| --- | --- |
+| binary frame | raw audio chunk, appended to the server-side buffer |
+| `{"type":"stt_start", content_type, filename, language, persona, include_audio}` | reset buffer, set session options |
+| `{"type":"stt_commit"}` | transcribe buffer, then run the full pipeline on the transcript |
+| `{"type":"chat", message, persona, include_audio}` | text turn, skip STT |
+| `{"type":"ping"}` | heartbeat (client sends every 15s) |
 
-Returns backend status and configured providers.
+Server → client:
 
----
+| Message | Purpose |
+| --- | --- |
+| `{"type":"status", state:"ready"}` | sent on connect |
+| `{"type":"transcript", role:"user"\|"assistant", text}` | both sides of the turn |
+| `{"type":"audio", audioBase64, contentType:"audio/mpeg"}` | full TTS clip |
+| `{"type":"metadata", emotion, gesture, llm_provider, tts_provider}` | animation hints |
+| `{"type":"stt_status", state:"recording"\|"processing"\|"empty"\|"complete"\|"error"}` | mic UI |
+| `{"type":"error", message}` | surfaced into the transcript panel |
 
-### Chat
+## Avatar model
 
-```http
-POST /chat
-```
+Avaturn T2 GLB, one baked animation clip (`avaturn_animation`), morph targets across
+`Head_Mesh` (72), `Teeth_Mesh`, `Tongue_Mesh`, `Eye_Mesh`, `EyeAO_Mesh`, `Eyelash_Mesh`.
 
-Input:
+The head mesh carries the **full Oculus 15-viseme set** — `viseme_sil, PP, FF, TH, DD, kk,
+CH, SS, nn, RR, aa, E, I, O, U` — plus ARKit-style expression shapes (`mouthSmile*`,
+`brow*`, `eyeBlink*`, `jawOpen`, `cheekPuff`, …). Today the code only drives `mouthOpen`,
+`jawOpen`, `eyeBlinkLeft/Right`, and 5 vowel visemes. The model is far ahead of the code.
 
-```json
-{
-  "message": "What are the department timings?",
-  "persona": "hod"
-}
-```
+Persona/emotion/gesture vocabulary the backend emits:
 
-Output:
+- emotions: `neutral, welcoming, happy, thinking, serious, encouraging`
+- gestures: `idle, greeting, explaining, thinking, nodding, speaking`
 
-```json
-{
-  "response": "...",
-  "persona": "hod",
-  "provider": "groq",
-  "emotion": "neutral",
-  "gesture": "explaining"
-}
-```
-
----
-
-### STT
-
-```http
-POST /stt
-```
-
-Receives audio and returns transcript.
+The backend only sends hints. It never animates.
 
 ---
 
-### TTS
+## Current state
 
-```http
-POST /tts
+**Working:** all REST endpoints + `GET /personas`; four personas with per-persona model,
+voice and colour; Groq LLM with Gemini fallback; **conversation memory** per WS session;
+**timeline-driven lipsync** across 15 visemes with coarticulation and jaw coupling;
+ElevenLabs `with-timestamps` and Edge TTS `WordBoundary` both yielding real timings;
+Groq Whisper STT; emotion hints driving facial expressions; persona switcher with
+history isolation; blink; idle motion; reconnect + send queue.
+
+**Remaining gaps** (roughly by impact):
+
+1. **No VAD / turn detection.** `useMicrophoneStream` force-commits every `SEGMENT_MS`
+   (1500ms) on a fixed interval, so speech is chopped mid-sentence, each fragment is
+   transcribed separately, and each fragment triggers its own LLM+TTS response. Push-to-talk
+   ("A" key) sidesteps this; free-running mic still suffers. **Biggest remaining defect.**
+2. **No real streaming.** `LLMProvider.stream()` in `base.py` just yields the whole
+   completion, so `/chat/stream` is SSE-shaped but not actually incremental. TTS audio is
+   sent as one base64 blob, so perceived latency is LLM + TTS end-to-end (~1–3s).
+3. **No knowledge base / RAG.** Personas are told not to invent facts, but there is no
+   source of college-specific data, so they deflect to "ask the office" a lot.
+4. **Emotion/gesture inference is keyword matching** over the response text
+   (`infer_avatar_hints`), not classification. Gesture hints are still not consumed by the
+   client (emotion is).
+5. **Grapheme→viseme mapping is rule-based**, not true G2P. English spelling is not
+   phonetic, so some shapes are approximations. It reads correctly because the *timings*
+   are real; upgrading to a phoneme dictionary would sharpen it further.
+6. **No tests anywhere**, backend or frontend.
+7. **`.env.example` still missing** (README no longer references it).
+8. **Two GLBs for four personas** — `chairman`/`reception` share `avaturn.glb`, and
+   `hod`/`guide` share `hod.glb`. Distinct models are a drop-in `model_url` change.
+
+## Priorities
+
+1. VAD / proper turn-taking instead of the 1.5s interval commit
+2. Real streaming: token streaming from Groq, chunked TTS playback
+3. Better avatar models (see below) — one per persona
+4. Knowledge base for college-specific answers
+5. Consume gesture hints (emotion already drives expressions)
+6. Tests
+
+## Avatar models
+
+Any GLB with the **Oculus viseme set** works with zero code changes — the lipsync engine is
+model-agnostic. Drop the file in `frontend/public/avatars/` and point the persona's
+`model_url` at it.
+
+Sources, as of July 2026:
+
+| Source | Visemes | Notes |
+| --- | --- | --- |
+| **Microsoft Rocketbox** | 15 visemes + 52 ARKit | MIT licensed, 115 professional rigged avatars. FBX — needs conversion to GLB. Best free option. |
+| Avaturn | Same naming as current models | What the current two GLBs came from. Photo→3D scanning is why they look rough. |
+| MetaPerson (Avatar SDK) | Yes | Positioned as the RPM replacement; commercial. |
+| Mixamo | **None** | Body animation only — no facial rig. Useful for retargeting body motion. |
+| Sketchfab | Rarely | Most listings have no face rig. Verify before committing. |
+
+**Ready Player Me is dead** — Netflix acquired it and shut the public service down on
+31 January 2026. The domain no longer resolves. Any doc or tutorial telling you to use
+`models.readyplayer.me` is obsolete.
+
+Checklist for any candidate model:
+
+1. Open it in [gltf-viewer.donmccurdy.com](https://gltf-viewer.donmccurdy.com/) and confirm
+   morph targets exist on the head mesh
+2. Full `viseme_*` set (15), not just `mouthOpen`
+3. Visemes on teeth and tongue meshes too, not only the head — otherwise it looks uncanny
+4. Under ~10 MB (the current two are 14 MB each)
+5. Standard bone names (`Hips`/`Spine`/`Head`) so Mixamo animations retarget
+
+## Conventions
+
+- Providers stay swappable via `.env`; never hardcode a provider outside its factory.
+- API keys never leave the backend.
+- Responses stay short and spoken-friendly — no markdown, no long lists, ~700 char cap
+  (`MAX_AVATAR_RESPONSE_CHARS`).
+- Backend sends hints; the client owns all animation.
+- No Rhubarb, no offline phoneme files, no precomputed video, no temp files as a workflow.
+- `frontend/AGENTS.md`: this Next.js version has breaking changes vs. common knowledge —
+  read `frontend/node_modules/next/dist/docs/` before writing frontend code.
+
+## Running it
+
+```powershell
+# backend
+cd backend
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+# create .env — see backend/README.md for required keys
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000   # docs at /docs
+
+# frontend
+cd frontend
+npm install
+npm run dev                                                   # http://localhost:3000
 ```
 
-Receives text and persona, returns generated audio.
+Frontend env: `NEXT_PUBLIC_WS_URL` (default `ws://localhost:8000/ws`),
+`NEXT_PUBLIC_AVATAR_MODEL` (default `/avatars/avaturn.glb`).
 
----
+Mic needs a secure context — use `localhost` or HTTPS.
 
-### Avatar Response
+## History
 
-```http
-POST /avatar/respond
-```
-
-Input:
-
-```json
-{
-  "message": "Tell me about placements.",
-  "persona": "hod"
-}
-```
-
-Output:
-
-```json
-{
-  "text": "...",
-  "persona": "hod",
-  "audio_url": "...",
-  "emotion": "encouraging",
-  "gesture": "explaining",
-  "llm_provider": "groq",
-  "tts_provider": "elevenlabs",
-  "latency": {
-    "total_ms": 0
-  }
-}
-```
-
----
-
-## What NOT To Do
-
-Do NOT:
-
-* integrate backend tightly into frontend
-* put API keys in Unity
-* use Rhubarb as core architecture
-* generate full videos
-* make UI-specific decisions in backend
-* hardcode provider logic everywhere
-* make responses too long
-* require temp files for every stage unless unavoidable
-* make Unity responsible for LLM/TTS API calls directly
-
----
-
-## Immediate Development Goal
-
-Build clean backend first.
-
-Priority:
-
-1. FastAPI structure
-2. health endpoint
-3. persona loading
-4. Groq LLM provider
-5. Gemini fallback provider
-6. ElevenLabs TTS provider
-7. Edge TTS fallback
-8. Groq Whisper STT
-9. /avatar/respond full pipeline
-10. streaming upgrades later
-
----
-
-## Success Criteria
-
-Backend is successful if:
-
-* Unity can call one endpoint and get a complete avatar response package
-* Providers are swappable through `.env`
-* API keys are never exposed to frontend/Unity
-* Responses are fast and concise
-* TTS works with ElevenLabs cloned voice
-* STT supports uploaded audio
-* Architecture is ready for streaming later
+- `CONTEXT.md` (original) — Unity client + FastAPI backend PRD. The backend half is still
+  accurate and was built as specified; the Unity client never happened.
+- `CONTEXT1.md` — frontend-only brief that reversed the Unity decision in favour of
+  Next.js + R3F. That decision won.
+- Both are folded into this document. Where they disagreed, the code is the tiebreaker.
