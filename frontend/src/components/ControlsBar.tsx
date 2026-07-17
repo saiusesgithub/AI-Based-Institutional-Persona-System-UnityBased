@@ -5,10 +5,11 @@ import { ConnectionStatus } from "@/components/ConnectionStatus";
 
 type ControlsBarProps = {
   onSend: (message: string) => void;
-  onToggleListening: () => void;
+  onHoldStart: () => void;
+  onHoldEnd: () => void;
 };
 
-export const ControlsBar = ({ onSend, onToggleListening }: ControlsBarProps) => {
+export const ControlsBar = ({ onSend, onHoldStart, onHoldEnd }: ControlsBarProps) => {
   const input = useAppStore((state) => state.input);
   const listening = useAppStore((state) => state.listening);
   const muted = useAppStore((state) => state.muted);
@@ -51,15 +52,26 @@ export const ControlsBar = ({ onSend, onToggleListening }: ControlsBarProps) => 
       <div className="control-group">
         <button
           type="button"
-          className={`control-button ${listening ? "active" : ""}`}
-          onClick={onToggleListening}
-          aria-label="Toggle microphone"
+          className={`control-button push-to-talk ${listening ? "active" : ""}`}
+          // Hold to speak: press starts recording, release sends the turn. pointerleave and
+          // pointercancel also end it so a drag off the button can't leave the mic stuck open.
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            onHoldStart();
+          }}
+          onPointerUp={onHoldEnd}
+          onPointerCancel={onHoldEnd}
+          onContextMenu={(event) => event.preventDefault()}
+          aria-label="Hold to speak"
+          title="Hold to speak (or hold A)"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 1 1-6 0V6a3 3 0 0 1 3-3Z" />
             <path d="M19 11a7 7 0 0 1-14 0" />
             <path d="M12 18v3" />
           </svg>
+          <span className="push-to-talk-label">{listening ? "Release to send" : "Hold to speak"}</span>
         </button>
         <button
           type="button"

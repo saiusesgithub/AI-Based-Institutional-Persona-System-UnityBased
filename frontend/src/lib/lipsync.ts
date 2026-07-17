@@ -13,24 +13,31 @@ export type VisemeCue = {
   end: number;
 };
 
-/** The 15 Oculus visemes, mapped to the morph target names on the GLB. */
-export const VISEME_MORPH_TARGETS: Record<string, string> = {
-  sil: "viseme_sil",
-  PP: "viseme_PP",
-  FF: "viseme_FF",
-  TH: "viseme_TH",
-  DD: "viseme_DD",
-  kk: "viseme_kk",
-  CH: "viseme_CH",
-  SS: "viseme_SS",
-  nn: "viseme_nn",
-  RR: "viseme_RR",
-  aa: "viseme_aa",
-  E: "viseme_E",
-  I: "viseme_I",
-  O: "viseme_O",
-  U: "viseme_U",
+/**
+ * The 15 Oculus visemes, with the morph target names different model vendors use for each.
+ * Avaturn/RPM prefix with `viseme_`; Avatar SDK uses bare names and `ih/oh/ou` for I/O/U.
+ * Resolution tries aliases in order against the mesh's morph dictionary, so any of these
+ * model families is drop-in.
+ */
+export const VISEME_ALIASES: Record<string, string[]> = {
+  sil: ["viseme_sil", "sil"],
+  PP: ["viseme_PP", "PP"],
+  FF: ["viseme_FF", "FF"],
+  TH: ["viseme_TH", "TH"],
+  DD: ["viseme_DD", "DD"],
+  kk: ["viseme_kk", "kk"],
+  CH: ["viseme_CH", "CH"],
+  SS: ["viseme_SS", "SS"],
+  nn: ["viseme_nn", "nn"],
+  RR: ["viseme_RR", "RR"],
+  aa: ["viseme_aa", "aa"],
+  E: ["viseme_E", "E"],
+  I: ["viseme_I", "I", "ih"],
+  O: ["viseme_O", "O", "oh"],
+  U: ["viseme_U", "U", "ou"],
 };
+
+export const VISEME_IDS = Object.keys(VISEME_ALIASES);
 
 /** Vowels open the jaw; consonants mostly don't. */
 const JAW_OPEN_BY_VISEME: Record<string, number> = {

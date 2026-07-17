@@ -102,6 +102,35 @@ input {
   opacity: 0.7;
 }
 
+.push-to-talk {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  padding: 0 16px;
+  border-radius: 999px;
+  /* Holding must not select text or trigger touch scrolling/long-press menus. */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.push-to-talk-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+.push-to-talk.active {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.push-to-talk.active .push-to-talk-label {
+  color: #fca5a5;
+}
+
 .persona-switcher {
   display: flex;
   gap: 10px;

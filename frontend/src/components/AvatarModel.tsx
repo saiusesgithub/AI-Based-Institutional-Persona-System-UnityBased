@@ -18,11 +18,11 @@ const ALL_VISEME_MORPHS = Object.values(VISEME_MORPH_TARGETS);
  * shouting. Real speech is a small, fast mouth. Turn these up to exaggerate.
  */
 const LIPSYNC = {
-  viseme: 0.42,
-  jaw: 0.13,
-  mouthOpen: 0.04,
+  viseme: 0.26,
+  jaw: 0.09,
+  mouthOpen: 0.02,
   /** Amplitude fallback when a provider gives no timing. */
-  fallbackJaw: 0.14,
+  fallbackJaw: 0.1,
 };
 
 /** Expression morphs per emotion hint from the backend, as name → weight. */

@@ -17,7 +17,7 @@ export const MainView = () => {
 
   usePersonas();
 
-  const { start, stop, toggle } = useMicrophoneStream({
+  const { start, stop } = useMicrophoneStream({
     sendChunk: sendBinary,
     sendEvent,
     persona: activePersonaId ?? undefined,
@@ -80,7 +80,7 @@ export const MainView = () => {
       <Stage />
       <PersonaSwitcher onSwitch={handlePersonaSwitch} />
       <TranscriptPanel />
-      <ControlsBar onSend={handleSend} onToggleListening={toggle} />
+      <ControlsBar onSend={handleSend} onHoldStart={() => void start()} onHoldEnd={stop} />
     </main>
   );
 };
