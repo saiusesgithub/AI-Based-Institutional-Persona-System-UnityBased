@@ -1,0 +1,100 @@
+[
+  {
+    "id": "about",
+    "title": "About VJIT",
+    "url": "https://vjit.edu.in/about-us/",
+    "keywords": ["about", "established", "history", "results", "placements", "college", "vjit"],
+    "text": "Vidya Jyothi Institute of Technology (VJIT) was established in 1998 by Vidya Jyothi Educational Society, created by committed academicians and educationists. The official site describes VJIT as having consistent 95% academic results and an average of 82% placements for eligible students."
+  },
+  {
+    "id": "contact",
+    "title": "Contact and Location",
+    "url": "https://vjit.edu.in/",
+    "keywords": ["contact", "phone", "address", "location", "reach", "where", "campus"],
+    "text": "VJIT is located at Himayathnagar Village, Opp Aziz Nagar Gate, Chaitanya Bharathi Post, Hyderabad, Telangana 500075, India. The official contact number shown on the site is +91 73 73 637 637, with WhatsApp/contact number +91 9441627689."
+  },
+  {
+    "id": "programs",
+    "title": "Programs Offered",
+    "url": "https://vjit.edu.in/",
+    "keywords": ["programs", "courses", "branches", "btech", "mtech", "mba", "departments", "cse", "ece", "eee"],
+    "text": "VJIT lists B.Tech, M.Tech and MBA programs. B.Tech branches include Computer Science and Engineering, CSE Data Science, CSE AI and ML, Information Technology, Electronics and Communication Engineering, Electrical and Electronics Engineering, Civil Engineering, and Mechanical Engineering. M.Tech options listed include Computer Science and Engineering, Structural Engineering, Electrical Power System, Embedded Systems, and CAD/CAM. MBA specializations listed include Finance, Marketing, Human Resource Management, and Entrepreneurship."
+  },
+  {
+    "id": "accreditations",
+    "title": "Approvals and Accreditations",
+    "url": "https://vjit.edu.in/about-us/accreditations/",
+    "keywords": ["accreditation", "approval", "aicte", "ugc", "nba", "naac", "autonomous", "iso", "research", "incubation"],
+    "text": "VJIT is approved by AICTE, New Delhi. The site states UGC autonomy status and inclusion under 2(f) and 12(B) of the UGC Act 1956. All eligible B.Tech programs have NBA accreditation, and VJIT is accredited by NAAC with A+. The site also lists JNTUH and DRDO approved research centers, an MSME approved incubation center, ISO 9001:2015 certification, and Institution Innovation Council participation."
+  },
+  {
+    "id": "centers_of_excellence",
+    "title": "Centers of Excellence",
+    "url": "https://vjit.edu.in/about-us/accreditations/",
+    "keywords": ["center", "centre", "excellence", "coe", "virtusa", "cisco", "salesforce", "qlik", "ni"],
+    "text": "The VJIT accreditations page lists Centers of Excellence including Virtusa, Lean, CISCO, Qlik Q, Cypress Semiconductor, National Instruments, Salesforce, Data Ready, Engineers Without Borders, and MGNCRE."
+  },
+  {
+    "id": "leadership",
+    "title": "Leadership",
+    "url": "https://vjit.edu.in/leadership/",
+    "keywords": ["leadership", "principal", "secretary", "director", "placement", "administration", "dean"],
+    "text": "The leadership page lists Dr. P. Rajeshwar Reddy as Secretary and Correspondent, S. Neelima as Joint Secretary, Prof. M. Govind Ram Reddy as Member, Dr. A. Srujana as Principal, Dr. A. Padmaja as Dean-Accreditation and Rankings, Mr. R. Venkatachalam as Director of the Training and Placement Cell, and Mrs. G. Srilatha as Director-Academics."
+  },
+  {
+    "id": "admissions_snapshot",
+    "title": "Admissions and Recruiter Snapshot",
+    "url": "https://vjit.edu.in/admissions/",
+    "keywords": ["admissions", "admission", "alumni", "recruiters", "offers", "companies", "placements"],
+    "text": "The admissions page states 15000+ alumni working in MNCs across the US, UK, Canada and Australia; 2000+ recruiters including PWC, TCS, Vivnovation, Epam, Virtusa, HSBC and Mahindra; 5000+ offers by Fortune 500 companies including ADP, Capgemini, Accenture, Cognizant and IBM; and 350+ companies that recruit from VJIT."
+  },
+  {
+    "id": "placements_summary",
+    "title": "Placement Summary",
+    "url": "https://vjit.edu.in/admissions/",
+    "keywords": ["placement", "placements", "salary", "package", "drives", "placed", "recruiters"],
+    "text": "The admissions page states 300+ placement drives in the last five years, 21.5 LPA as the highest salary package, and 4000+ total students placed in the last five years. Recruiter logos shown include ADP, Cognizant, Tech Mahindra, TCS, CISCO, Capgemini, PWC, Axis, CtrlS, Amazon, Qspiders, Ultratech Cement, TATA Strive, Sutherland, Planet Spark, Eidiko, Rupeek, LEAP, Paltech, Vivnovation, Factor Lab, Zilogic, Shift, Regal Rexnord, Ashoka Builders, HDFC, URC and Bayer."
+  },
+  {
+    "id": "placements_2025",
+    "title": "Quick Facts 2025",
+    "url": "https://vjit.edu.in/placements/fast-facts/",
+    "keywords": ["2025", "placement", "placements", "average", "package", "vivnovation", "deloitte", "wipro", "tcs codevita"],
+    "text": "VJIT Quick Facts 2025 states 600+ students placed, 900+ multiple offers, 75+ companies hired from VJIT as of the page update, 20 LPA offered by Vivnovation, average pay package of 5.2 LPA, and prominent recruiters including Cognizant, HCL Tech, Factset, HSBC, Kyndryl, Deloitte, Capgemini, Wipro, Accenture, Vodafone, DBS Bank and Virtusa. It also notes Raghavendra.G from the Artificial Intelligence department ranked AIR 1 and among the top 25 coders in TCS CodeVita season 12."
+  },
+  {
+    "id": "placements_2024",
+    "title": "Quick Facts 2024",
+    "url": "https://vjit.edu.in/placements/fast-facts/",
+    "keywords": ["2024", "placement", "placements", "skillsoft", "virtusa", "scholarship", "average"],
+    "text": "VJIT Quick Facts 2024 states 665 unique students placed, 75+ companies hired, 10 LPA offered by Skillsoft, average pay package of 4.8 LPA, and prominent recruiters including Capgemini, Tech Mahindra, Cognizant, Accenture and UST Global. It also states seven girls from the 2024 passing-out batch were offered Rs 50,000 scholarships each by Virtusa as part of International Women's Day celebrations 2023."
+  },
+  {
+    "id": "placements_2023",
+    "title": "Quick Facts 2023",
+    "url": "https://vjit.edu.in/placements/fast-facts/",
+    "keywords": ["2023", "placement", "placements", "epam", "ibm", "dbs", "cognizant", "average"],
+    "text": "VJIT Quick Facts 2023 states 742 unique students placed, 70+ companies hired, 12 students selected with 12 LPA offered by EPAM, IBM offered 11.5 LPA to two girl students in diversity hiring, DBS Bank offered 9.07 LPA to 11 students, Cognizant made 120+ offers, and the average pay package was 7.19 LPA."
+  },
+  {
+    "id": "placements_2022_2021",
+    "title": "Quick Facts 2022 and 2021",
+    "url": "https://vjit.edu.in/placements/fast-facts/",
+    "keywords": ["2022", "2021", "placement", "placements", "cisco", "byjus", "extramarks", "average"],
+    "text": "VJIT Quick Facts 2022 states 676 unique students placed, 700+ students placed in 70 companies, 15 LPA highest package offered by CISCO and BYJUS, and an average pay package of 5.11 LPA. Quick Facts 2021 states around 80% of eligible students were placed, 552 students placed in 54 companies, 13.5 LPA highest package by Extramarks, and an average pay package of 3.5 LPA."
+  },
+  {
+    "id": "latest_2026",
+    "title": "Latest 2026 Updates",
+    "url": "https://vjit.edu.in/",
+    "keywords": ["latest", "news", "2026", "sprintm", "kyndryl", "ctrls", "urc", "mahindra", "nss", "ncc"],
+    "text": "Recent homepage updates in June and July 2026 include an anti-drug abuse awareness program by VJIT NCC and NSS with Future City Police Station, Moinabad; 17 SprintM Technologies selections at 6 LPA; six Kyndryl selections from the 2026 batch at 5.2 LPA; two ECE students selected by CtrlS Data Centre as Associate Engineers at 4.5 LPA; three Mechanical Engineering students selected by Mahindra and Mahindra as Graduate Apprentice Trainees; and 14 Civil, Mechanical and EEE students selected by URC Constructions as Graduate Engineer Trainees."
+  },
+  {
+    "id": "library",
+    "title": "Library Facilities",
+    "url": "https://vjit.edu.in/about-us/infrastructure/library/",
+    "keywords": ["library", "digital", "opac", "books", "journals", "delnet", "nptel", "ndl", "timings"],
+    "text": "The library page lists services such as reference, circulation, user orientation, referral service, reprography, document printing, DELNET and inter-library loan, OPAC through KOHA, departmental libraries, and a digital library with 35 systems and 100 MBPS internet bandwidth. E-resources include IEEE ASPP, ASCE, ASME, EBSCO e-books, DELNET, INFLIBNET N-LIST, NPTEL, NDL, previous question papers, project reports, course files and faculty publications. Library timings are shown as 9:00 AM to 6:00 PM."
+  }
+]

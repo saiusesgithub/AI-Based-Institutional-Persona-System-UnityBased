@@ -10,6 +10,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useBlink } from "@/hooks/useBlink";
 import { getAudioTime } from "@/lib/audioEngine";
 import { lipsyncTrack, VISEME_ALIASES, VISEME_IDS } from "@/lib/lipsync";
+import { useDebugStore } from "@/store/useDebugStore";
 
 /**
  * How far the mouth actually travels. Morph targets at weight 1.0 are extreme reference
@@ -76,24 +77,34 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   // Then auto-frame: vendors export at wildly different scales and origins, so measure the
   // model and normalize it to the framing the camera is aimed at (target y≈1.45, feet at
   // -1.9, height ≈3.4 world units) instead of trusting the file.
-  const model = useMemo(() => {
+  const { model, baseFrame } = useMemo(() => {
     const cloned = cloneSkinned(scene);
     const box = new THREE.Box3().setFromObject(cloned);
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
     box.getSize(size);
     box.getCenter(center);
+    const frame = { scale: 1, position: [0, 0, 0] as [number, number, number], nativeHeight: size.y };
     if (size.y > 0.0001) {
       const scale = 3.4 / size.y;
+      frame.scale = scale;
+      frame.position = [-center.x * scale, -1.9 - box.min.y * scale, -center.z * scale];
       cloned.scale.setScalar(scale);
-      cloned.position.set(
-        -center.x * scale,
-        -1.9 - box.min.y * scale,
-        -center.z * scale,
-      );
+      cloned.position.set(...frame.position);
     }
-    return cloned;
+    return { model: cloned, baseFrame: frame };
   }, [scene]);
+
+  const activePersonaId = useAppStore((state) => state.activePersonaId);
+  useEffect(() => {
+    useDebugStore.getState().setStats({
+      personaId: activePersonaId,
+      modelUrl,
+      nativeHeight: baseFrame.nativeHeight,
+      baseScale: baseFrame.scale,
+      basePosition: baseFrame.position,
+    });
+  }, [activePersonaId, baseFrame, modelUrl]);
 
   // Both clip sets are offered to the mixer. A model's own baked idle is authored for that
   // exact body, so it wins as the resting loop; the shared mocap Talking clips still add
@@ -179,7 +190,7 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   const quietSeconds = useRef(0);
   // Where the eyes are aimed (-1..1 each axis), where they're heading, and when to retarget.
   const gazeState = useRef({ x: 0, y: 0, targetX: 0, targetY: 0, nextShiftAt: 0 });
-  const driftState = useRef({ target: 0, nextShiftAt: 0 });
+  const driftState = useRef({ target: 0, value: 0, nextShiftAt: 0 });
 
   useFrame((state, delta) => {
     const now = state.clock.getElapsedTime();
@@ -266,8 +277,19 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
       drift.target = (Math.random() * 2 - 1) * 0.06;
       drift.nextShiftAt = now + 7 + Math.random() * 8;
     }
+    drift.value += (drift.target - drift.value) * smooth(0.8);
+
+    // Calibration overlay adjustments layered on top of auto-framing (identity when the
+    // panel has never been touched).
+    const adjust = useDebugStore.getState().adjust;
     if (groupRef.current) {
-      groupRef.current.rotation.y += (drift.target - groupRef.current.rotation.y) * smooth(0.8);
+      groupRef.current.rotation.y = drift.value + THREE.MathUtils.degToRad(adjust.rotYDeg);
+      groupRef.current.scale.setScalar(baseFrame.scale * adjust.modelScale);
+      groupRef.current.position.set(
+        baseFrame.position[0] + adjust.modelX,
+        baseFrame.position[1] + adjust.modelY,
+        baseFrame.position[2],
+      );
     }
 
     const targetExpression = EMOTION_EXPRESSIONS[emotion] ?? {};
@@ -321,5 +343,4 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   return <primitive ref={groupRef} object={model} />;
 };
 
-useGLTF.preload("/avatars/hod.glb");
 useGLTF.preload("/avatars/animations.glb");

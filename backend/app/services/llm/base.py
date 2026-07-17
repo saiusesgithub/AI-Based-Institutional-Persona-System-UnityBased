@@ -33,6 +33,7 @@ class LLMProvider(ABC):
         persona: Persona,
         language: str = "auto",
         history: list[dict[str, str]] | None = None,
+        knowledge_context: str = "",
     ) -> LLMResponse:
         """`history` is prior turns as {"role": "user"|"assistant", "content": str}."""
         raise NotImplementedError
@@ -43,6 +44,7 @@ class LLMProvider(ABC):
         persona: Persona,
         language: str = "auto",
         history: list[dict[str, str]] | None = None,
+        knowledge_context: str = "",
     ) -> AsyncIterator[str]:
-        response = await self.complete(message, persona, language, history)
+        response = await self.complete(message, persona, language, history, knowledge_context)
         yield response.text

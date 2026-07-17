@@ -10,6 +10,7 @@ class GroqLLMProvider(LLMProvider):
     name = "groq"
 
     def __init__(self, settings: Settings):
+        self._settings = settings
         self._api_key = settings.groq_api_key
         self._model = settings.groq_llm_model
         self._timeout = settings.request_timeout_seconds
@@ -20,6 +21,7 @@ class GroqLLMProvider(LLMProvider):
         persona: Persona,
         language: str = "auto",
         history: list[dict[str, str]] | None = None,
+        knowledge_context: str = "",
     ) -> LLMResponse:
         if not self._api_key:
             raise ProviderConfigurationError("GROQ_API_KEY is required for Groq LLM")
@@ -27,12 +29,12 @@ class GroqLLMProvider(LLMProvider):
         payload = {
             "model": self._model,
             "messages": [
-                {"role": "system", "content": self._system_prompt(persona, language)},
+                {"role": "system", "content": self._system_prompt(persona, language, knowledge_context)},
                 *(history or []),
                 {"role": "user", "content": message},
             ],
             "temperature": 0.4,
-            "max_tokens": 220,
+            "max_tokens": self._settings.llm_max_tokens,
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
@@ -52,11 +54,13 @@ class GroqLLMProvider(LLMProvider):
         return LLMResponse(text=text, provider=self.name, model=self._model)
 
     @staticmethod
-    def _system_prompt(persona: Persona, language: str) -> str:
+    def _system_prompt(persona: Persona, language: str, knowledge_context: str = "") -> str:
+        context = f"\n\n{knowledge_context}" if knowledge_context else ""
         return (
             f"{persona.system_prompt}\n"
             f"Role: {persona.role}.\n"
             f"Speaking style: {persona.speaking_style}.\n"
             f"{language_instruction(language)}\n"
-            "Keep the response suitable for spoken avatar delivery: short, clear, and natural."
+            "Keep the response suitable for spoken avatar delivery: one to three short sentences, clear, and natural."
+            f"{context}"
         )

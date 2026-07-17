@@ -4,6 +4,7 @@ import { Stage } from "@/components/Stage";
 import { TranscriptPanel } from "@/components/TranscriptPanel";
 import { ControlsBar } from "@/components/ControlsBar";
 import { PersonaSwitcher } from "@/components/PersonaSwitcher";
+import { DebugPanel } from "@/components/DebugPanel";
 import { useCallback, useEffect } from "react";
 import { useAvatarSocket } from "@/hooks/useAvatarSocket";
 import { useMicrophoneStream } from "@/hooks/useMicrophoneStream";
@@ -81,6 +82,7 @@ export const MainView = () => {
     <main className="app-shell">
       <Stage />
       <PersonaSwitcher onSwitch={handlePersonaSwitch} />
+      <DebugPanel />
       <TranscriptPanel />
       <ControlsBar onSend={handleSend} onHoldStart={() => void start()} onHoldEnd={stop} />
     </main>

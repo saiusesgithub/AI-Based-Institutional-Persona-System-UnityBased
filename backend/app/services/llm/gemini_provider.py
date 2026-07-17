@@ -22,6 +22,7 @@ class GeminiLLMProvider(LLMProvider):
     name = "gemini"
 
     def __init__(self, settings: Settings):
+        self._settings = settings
         self._api_key = settings.gemini_api_key
         self._model = settings.gemini_model
         self._timeout = settings.request_timeout_seconds
@@ -32,6 +33,7 @@ class GeminiLLMProvider(LLMProvider):
         persona: Persona,
         language: str = "auto",
         history: list[dict[str, str]] | None = None,
+        knowledge_context: str = "",
     ) -> LLMResponse:
         if not self._api_key:
             raise ProviderConfigurationError("GEMINI_API_KEY is required for Gemini LLM")
@@ -42,13 +44,13 @@ class GeminiLLMProvider(LLMProvider):
         )
         payload = {
             "systemInstruction": {
-                "parts": [{"text": self._system_prompt(persona, language)}],
+                "parts": [{"text": self._system_prompt(persona, language, knowledge_context)}],
             },
             "contents": [
                 *_to_gemini_contents(history or []),
                 {"role": "user", "parts": [{"text": message}]},
             ],
-            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 220},
+            "generationConfig": {"temperature": 0.4, "maxOutputTokens": self._settings.llm_max_tokens},
         }
 
         try:
@@ -63,11 +65,13 @@ class GeminiLLMProvider(LLMProvider):
         return LLMResponse(text=text, provider=self.name, model=self._model)
 
     @staticmethod
-    def _system_prompt(persona: Persona, language: str) -> str:
+    def _system_prompt(persona: Persona, language: str, knowledge_context: str = "") -> str:
+        context = f"\n\n{knowledge_context}" if knowledge_context else ""
         return (
             f"{persona.system_prompt}\n"
             f"Role: {persona.role}.\n"
             f"Speaking style: {persona.speaking_style}.\n"
             f"{language_instruction(language)}\n"
-            "Keep answers concise and spoken-friendly. Avoid markdown unless asked."
+            "Keep answers to one to three short spoken-friendly sentences. Avoid markdown unless asked."
+            f"{context}"
         )

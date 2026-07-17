@@ -6,15 +6,17 @@ from app.core.errors import ProviderConfigurationError, ProviderRuntimeError
 from app.core.visemes import timeline_as_dicts
 from app.models.common import Emotion, Gesture, LatencyMetrics
 from app.models.tts_models import TTSResponse
+from app.services.knowledge_service import KnowledgeService
 from app.services.llm import LLMProvider, LLMResponse, create_llm_provider
 from app.services.persona_service import Persona, PersonaService
 from app.services.tts import TTSProvider, TTSResult, create_tts_provider
 
 
 class AvatarPipeline:
-    def __init__(self, settings: Settings, persona_service: PersonaService):
+    def __init__(self, settings: Settings, persona_service: PersonaService, knowledge_service: KnowledgeService):
         self._settings = settings
         self._persona_service = persona_service
+        self._knowledge_service = knowledge_service
         self._llm_provider = create_llm_provider(settings.llm_provider, settings)
         self._llm_fallback_provider = create_llm_provider(settings.llm_fallback_provider, settings)
         self._tts_provider = create_tts_provider(settings.tts_provider, settings)
@@ -28,7 +30,8 @@ class AvatarPipeline:
         history: list[dict[str, str]] | None = None,
     ) -> tuple[LLMResponse, Persona]:
         persona = self._persona_service.get(persona_id)
-        return await self._complete_with_fallback(message, persona, language, history), persona
+        knowledge_context = self._knowledge_service.context_for(message)
+        return await self._complete_with_fallback(message, persona, language, history, knowledge_context), persona
 
     async def tts(self, text: str, persona_id: str | None, language: str = "auto") -> TTSResponse:
         persona = self._persona_service.get(persona_id)
@@ -53,7 +56,8 @@ class AvatarPipeline:
         persona = self._persona_service.get(persona_id)
 
         llm_start = time.perf_counter()
-        llm_response = await self._complete_with_fallback(message, persona, language, history)
+        knowledge_context = self._knowledge_service.context_for(message)
+        llm_response = await self._complete_with_fallback(message, persona, language, history, knowledge_context)
         llm_ms = _elapsed_ms(llm_start)
 
         text = _trim_for_speech(llm_response.text, self._settings.max_avatar_response_chars)
@@ -90,11 +94,14 @@ class AvatarPipeline:
         persona: Persona,
         language: str,
         history: list[dict[str, str]] | None = None,
+        knowledge_context: str = "",
     ) -> LLMResponse:
         try:
-            return await self._llm_provider.complete(message, persona, language, history)
+            return await self._llm_provider.complete(message, persona, language, history, knowledge_context)
         except (ProviderConfigurationError, ProviderRuntimeError):
-            response = await self._llm_fallback_provider.complete(message, persona, language, history)
+            response = await self._llm_fallback_provider.complete(
+                message, persona, language, history, knowledge_context
+            )
             response.fallback_used = True
             return response
 

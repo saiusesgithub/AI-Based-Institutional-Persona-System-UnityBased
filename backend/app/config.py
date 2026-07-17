@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["*"])
     request_timeout_seconds: float = 60.0
     max_avatar_response_chars: int = 700
+    llm_max_tokens: int = 150
+    knowledge_path: Path = Path(__file__).resolve().parent / "data" / "vjit_knowledge.json"
+    knowledge_max_snippets: int = 4
 
     model_config = SettingsConfigDict(
         env_file=(".env", "backend/.env"),

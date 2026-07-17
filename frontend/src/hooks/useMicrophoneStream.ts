@@ -53,7 +53,10 @@ export const useMicrophoneStream = ({
 
   // Latched so the recorder callbacks always see current values without being re-created.
   const optionsRef = useRef({ persona, language, includeAudio, sendChunk, sendEvent });
-  optionsRef.current = { persona, language, includeAudio, sendChunk, sendEvent };
+
+  useEffect(() => {
+    optionsRef.current = { persona, language, includeAudio, sendChunk, sendEvent };
+  }, [persona, language, includeAudio, sendChunk, sendEvent]);
 
   const teardown = useCallback(() => {
     recorderRef.current = null;
