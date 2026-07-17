@@ -13,6 +13,16 @@ class LLMResponse:
     fallback_used: bool = False
 
 
+LANGUAGE_NAMES = {"en": "English", "hi": "Hindi", "te": "Telugu"}
+
+
+def language_instruction(language: str) -> str:
+    if language == "auto":
+        return "Use the user's language naturally."
+    name = LANGUAGE_NAMES.get(language, language)
+    return f"Respond only in {name}, in its native script."
+
+
 class LLMProvider(ABC):
     name: str
 

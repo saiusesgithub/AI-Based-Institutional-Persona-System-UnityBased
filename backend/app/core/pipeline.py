@@ -30,9 +30,9 @@ class AvatarPipeline:
         persona = self._persona_service.get(persona_id)
         return await self._complete_with_fallback(message, persona, language, history), persona
 
-    async def tts(self, text: str, persona_id: str | None) -> TTSResponse:
+    async def tts(self, text: str, persona_id: str | None, language: str = "auto") -> TTSResponse:
         persona = self._persona_service.get(persona_id)
-        result = await self._synthesize_with_fallback(text, persona)
+        result = await self._synthesize_with_fallback(text, persona, language)
         return TTSResponse(
             audio_base64=base64.b64encode(result.audio).decode("ascii"),
             provider=result.provider,
@@ -63,7 +63,7 @@ class AvatarPipeline:
         tts_result: TTSResult | None = None
         if include_audio:
             tts_start = time.perf_counter()
-            tts_result = await self._synthesize_with_fallback(text, persona)
+            tts_result = await self._synthesize_with_fallback(text, persona, language)
             tts_ms = _elapsed_ms(tts_start)
 
         return {
@@ -98,11 +98,11 @@ class AvatarPipeline:
             response.fallback_used = True
             return response
 
-    async def _synthesize_with_fallback(self, text: str, persona: Persona) -> TTSResult:
+    async def _synthesize_with_fallback(self, text: str, persona: Persona, language: str = "auto") -> TTSResult:
         try:
-            return await self._tts_provider.synthesize(text, persona)
+            return await self._tts_provider.synthesize(text, persona, language)
         except (ProviderConfigurationError, ProviderRuntimeError):
-            result = await self._tts_fallback_provider.synthesize(text, persona)
+            result = await self._tts_fallback_provider.synthesize(text, persona, language)
             result.fallback_used = True
             return result
 

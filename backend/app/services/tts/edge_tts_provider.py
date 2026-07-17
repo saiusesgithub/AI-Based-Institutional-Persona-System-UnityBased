@@ -6,6 +6,14 @@ from app.services.tts.base import TTSProvider, TTSResult
 # edge-tts reports WordBoundary offsets in 100-nanosecond ticks.
 TICKS_PER_SECOND = 10_000_000
 
+# Fallback voices per language when the persona doesn't name its own via metadata
+# (edge_voice / edge_voice_hi / edge_voice_te).
+DEFAULT_VOICES = {
+    "en": "en-IN-NeerjaNeural",
+    "hi": "hi-IN-SwaraNeural",
+    "te": "te-IN-ShrutiNeural",
+}
+
 
 class EdgeTTSProvider(TTSProvider):
     name = "edge_tts"
@@ -13,15 +21,18 @@ class EdgeTTSProvider(TTSProvider):
     def __init__(self, voice: str = "en-IN-NeerjaNeural"):
         self._voice = voice
 
-    async def synthesize(self, text: str, persona: Persona) -> TTSResult:
+    async def synthesize(self, text: str, persona: Persona, language: str = "auto") -> TTSResult:
         try:
             import edge_tts
         except ImportError as exc:
             raise ProviderConfigurationError("edge-tts package is required for Edge TTS fallback") from exc
 
-        # Persona voices are ElevenLabs ids, which mean nothing to Edge. A persona may name
-        # an Edge voice explicitly for dev use; otherwise fall back to the default.
-        voice = persona.metadata.get("edge_voice", self._voice)
+        # Edge voices are single-language, so speaking Hindi or Telugu means switching to a
+        # voice for that language; the persona's own English voice can't do it.
+        if language in ("hi", "te"):
+            voice = persona.metadata.get(f"edge_voice_{language}", DEFAULT_VOICES[language])
+        else:
+            voice = persona.metadata.get("edge_voice", self._voice)
 
         try:
             # edge-tts defaults to SentenceBoundary, which is far too coarse to drive a

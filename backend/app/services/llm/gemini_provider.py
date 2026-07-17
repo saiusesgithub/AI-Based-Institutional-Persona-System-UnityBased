@@ -2,7 +2,7 @@ import httpx
 
 from app.config import Settings
 from app.core.errors import ProviderConfigurationError, ProviderRuntimeError
-from app.services.llm.base import LLMProvider, LLMResponse
+from app.services.llm.base import LLMProvider, LLMResponse, language_instruction
 from app.services.persona_service import Persona
 
 
@@ -64,11 +64,10 @@ class GeminiLLMProvider(LLMProvider):
 
     @staticmethod
     def _system_prompt(persona: Persona, language: str) -> str:
-        language_hint = "Use the user's language naturally." if language == "auto" else f"Respond in {language}."
         return (
             f"{persona.system_prompt}\n"
             f"Role: {persona.role}.\n"
             f"Speaking style: {persona.speaking_style}.\n"
-            f"{language_hint}\n"
+            f"{language_instruction(language)}\n"
             "Keep answers concise and spoken-friendly. Avoid markdown unless asked."
         )

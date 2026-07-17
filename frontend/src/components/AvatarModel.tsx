@@ -8,9 +8,7 @@ import { useAudioStore } from "@/store/useAudioStore";
 import { useAppStore } from "@/store/useAppStore";
 import { useBlink } from "@/hooks/useBlink";
 import { getAudioTime } from "@/lib/audioEngine";
-import { lipsyncTrack, VISEME_MORPH_TARGETS } from "@/lib/lipsync";
-
-const ALL_VISEME_MORPHS = Object.values(VISEME_MORPH_TARGETS);
+import { lipsyncTrack, VISEME_ALIASES, VISEME_IDS } from "@/lib/lipsync";
 
 /**
  * How far the mouth actually travels. Morph targets at weight 1.0 are extreme reference
@@ -55,47 +53,59 @@ const setMorph = (mesh: MorphMesh, name: string, value: number) => {
 export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   const groupRef = useRef<THREE.Group>(null);
   const { scene, animations } = useGLTF(modelUrl);
-  const { actions } = useAnimations(animations, groupRef);
+  // Shared mocap clips (Idle, Talking_0..2). All our avatars use the same Mixamo-style
+  // rig (Hips/Spine/LeftArm/Head), so one animation file drives every model — and none
+  // of them ship their own clips, which is why they T-posed without this.
+  const { animations: sharedAnimations } = useGLTF("/avatars/animations.glb");
   const blink = useBlink();
 
   // Cloned so two personas sharing one GLB get independent morph state.
   const model = useMemo(() => scene.clone(true), [scene]);
 
-  const headRef = useRef<THREE.Object3D | null>(null);
-  const baseHeadRotation = useRef<THREE.Euler | null>(null);
+  const clips = animations.length > 0 ? animations : sharedAnimations;
+  const { actions } = useAnimations(clips, groupRef);
+  const hasIdleClip = Boolean(actions["Idle"]);
+  const speakingClip = useRef(false);
 
   useEffect(() => {
-    if (animations.length > 0) {
-      const first = animations[0]?.name;
-      if (first) {
-        actions[first]?.reset().fadeIn(0.4).play();
-      }
-    }
-
-    model.traverse((child) => {
-      if (child.type === "Bone" && !headRef.current && child.name.toLowerCase().includes("head")) {
-        headRef.current = child;
-        baseHeadRotation.current = child.rotation.clone();
-      }
-    });
-
+    const entry = actions["Idle"] ?? Object.values(actions)[0];
+    entry?.reset().fadeIn(0.4).play();
+    speakingClip.current = false;
     return () => {
-      const first = animations[0]?.name;
-      if (first) {
-        actions[first]?.fadeOut(0.2);
-      }
+      entry?.fadeOut(0.2);
     };
-  }, [actions, animations, model]);
+  }, [actions]);
 
-  const morphMeshes = useMemo(() => {
-    const meshes: MorphMesh[] = [];
+  // Resolved once per model: viseme id → morph index for each mesh, tried against every
+  // vendor naming (viseme_aa / aa / ih…), so lookup at 60fps is pure index math.
+  const meshBindings = useMemo(() => {
+    const bindings: {
+      mesh: MorphMesh;
+      visemes: Map<string, number>;
+      expressions: Map<string, number>;
+    }[] = [];
     model.traverse((child) => {
       const mesh = child as MorphMesh;
-      if ((child as THREE.Mesh).isMesh && mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
-        meshes.push(mesh);
+      if (!(child as THREE.Mesh).isMesh || !mesh.morphTargetDictionary || !mesh.morphTargetInfluences) {
+        return;
       }
+      const dict = mesh.morphTargetDictionary;
+      const visemes = new Map<string, number>();
+      VISEME_IDS.forEach((id) => {
+        const name = VISEME_ALIASES[id].find((alias) => dict[alias] !== undefined);
+        if (name !== undefined) {
+          visemes.set(id, dict[name]);
+        }
+      });
+      const expressions = new Map<string, number>();
+      EXPRESSION_MORPHS.forEach((name) => {
+        if (dict[name] !== undefined) {
+          expressions.set(name, dict[name]);
+        }
+      });
+      bindings.push({ mesh, visemes, expressions });
     });
-    return meshes;
+    return bindings;
   }, [model]);
 
   // Per-frame animation state is held in refs, never React state: this runs at 60fps.
@@ -105,15 +115,11 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   const blinkValue = useRef(0);
   const expressionWeights = useRef(new Map<string, number>());
 
+  const quietSeconds = useRef(0);
+
   useFrame((state, delta) => {
-    const t = state.clock.getElapsedTime();
     // Frame-rate independent smoothing: a fast machine shouldn't snap harder than a slow one.
     const smooth = (rate: number) => 1 - Math.exp(-rate * delta);
-
-    if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(t * 0.2) * 0.06;
-      groupRef.current.position.y = Math.sin(t * 0.6) * 0.015;
-    }
 
     // Read stores imperatively so this component never re-renders per frame.
     const { amplitude } = useAudioStore.getState();
@@ -122,24 +128,40 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
     const sample = lipsyncTrack.sample(getAudioTime());
     const usingTimeline = lipsyncTrack.hasTimeline();
 
+    // Crossfade Idle ↔ Talking with the audio. The hold-out before returning to Idle
+    // stops the body twitching between clips during natural pauses in a sentence.
+    if (hasIdleClip) {
+      const audiblySpeaking = sample.active || amplitude > 0.05;
+      quietSeconds.current = audiblySpeaking ? 0 : quietSeconds.current + delta;
+      const talking = actions["Talking_1"] ?? actions["Talking_0"];
+      const idle = actions["Idle"];
+      if (talking && idle) {
+        if (audiblySpeaking && !speakingClip.current) {
+          speakingClip.current = true;
+          idle.fadeOut(0.3);
+          talking.reset().fadeIn(0.3).play();
+        } else if (!audiblySpeaking && speakingClip.current && quietSeconds.current > 0.8) {
+          speakingClip.current = false;
+          talking.fadeOut(0.4);
+          idle.reset().fadeIn(0.4).play();
+        }
+      }
+    }
+
     // Decay every viseme toward zero, then raise the ones this instant calls for.
     const decay = smooth(22);
-    ALL_VISEME_MORPHS.forEach((morph) => {
-      const current = visemeWeights.current.get(morph) ?? 0;
+    VISEME_IDS.forEach((id) => {
+      const current = visemeWeights.current.get(id) ?? 0;
       if (current > 0.001) {
-        visemeWeights.current.set(morph, current * (1 - decay));
+        visemeWeights.current.set(id, current * (1 - decay));
       } else if (current !== 0) {
-        visemeWeights.current.set(morph, 0);
+        visemeWeights.current.set(id, 0);
       }
     });
 
     sample.weights.forEach((weight, viseme) => {
-      const morph = VISEME_MORPH_TARGETS[viseme];
-      if (!morph) {
-        return;
-      }
-      const current = visemeWeights.current.get(morph) ?? 0;
-      visemeWeights.current.set(morph, Math.max(current, weight * LIPSYNC.viseme));
+      const current = visemeWeights.current.get(viseme) ?? 0;
+      visemeWeights.current.set(viseme, Math.max(current, weight * LIPSYNC.viseme));
     });
 
     if (usingTimeline) {
@@ -162,20 +184,19 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
       expressionWeights.current.set(morph, current + (target - current) * smooth(3));
     });
 
-    // Speaking adds a little head motion; idle keeps a slow drift so it never looks frozen.
-    if (headRef.current && baseHeadRotation.current) {
-      const speaking = sample.active || amplitude > 0.05;
-      const nod = Math.sin(t * (speaking ? 4.5 : 1.6)) * (speaking ? 0.045 : 0.012);
-      const tilt = Math.cos(t * (speaking ? 2.8 : 1.2)) * (speaking ? 0.03 : 0.008);
-      headRef.current.rotation.x +=
-        (baseHeadRotation.current.x + nod - headRef.current.rotation.x) * smooth(6);
-      headRef.current.rotation.z +=
-        (baseHeadRotation.current.z + tilt - headRef.current.rotation.z) * smooth(6);
-    }
-
-    morphMeshes.forEach((mesh) => {
-      visemeWeights.current.forEach((value, morph) => setMorph(mesh, morph, value));
-      expressionWeights.current.forEach((value, morph) => setMorph(mesh, morph, value));
+    meshBindings.forEach(({ mesh, visemes, expressions }) => {
+      visemeWeights.current.forEach((value, id) => {
+        const index = visemes.get(id);
+        if (index !== undefined) {
+          mesh.morphTargetInfluences[index] = value;
+        }
+      });
+      expressionWeights.current.forEach((value, name) => {
+        const index = expressions.get(name);
+        if (index !== undefined) {
+          mesh.morphTargetInfluences[index] = value;
+        }
+      });
       setMorph(mesh, "jawOpen", jawValue.current);
       setMorph(mesh, "mouthOpen", mouthValue.current);
       setMorph(mesh, "eyeBlinkLeft", blinkValue.current);
@@ -187,3 +208,4 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
 };
 
 useGLTF.preload("/avatars/hod.glb");
+useGLTF.preload("/avatars/animations.glb");

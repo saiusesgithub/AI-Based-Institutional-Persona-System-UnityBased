@@ -22,9 +22,11 @@ class TTSProvider(ABC):
     name: str
 
     @abstractmethod
-    async def synthesize(self, text: str, persona: Persona) -> TTSResult:
+    async def synthesize(self, text: str, persona: Persona, language: str = "auto") -> TTSResult:
+        """`language` is an ISO code ("hi", "te", "en") or "auto"; providers that pick a
+        voice per language use it, others may ignore it."""
         raise NotImplementedError
 
-    async def stream(self, text: str, persona: Persona) -> AsyncIterator[bytes]:
-        result = await self.synthesize(text, persona)
+    async def stream(self, text: str, persona: Persona, language: str = "auto") -> AsyncIterator[bytes]:
+        result = await self.synthesize(text, persona, language)
         yield result.audio

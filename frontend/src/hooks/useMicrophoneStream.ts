@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
+import { stopAudio } from "@/lib/audioEngine";
 
 const pickMimeType = () => {
   const candidates = [
@@ -76,6 +77,10 @@ export const useMicrophoneStream = ({
       return;
     }
     startInProgress.current = true;
+
+    // Barge-in: holding to speak silences the avatar immediately. Talking over a visitor
+    // is the one thing a kiosk must never do.
+    stopAudio();
 
     try {
       if (typeof window !== "undefined" && !window.isSecureContext) {

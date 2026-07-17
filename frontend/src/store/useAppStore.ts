@@ -44,6 +44,7 @@ type AppState = {
   activePersonaId: string | null;
   emotion: string;
   gesture: string;
+  language: string;
   setConnectionStatus: (status: ConnectionStatus) => void;
   addTranscript: (entry: Omit<TranscriptEntry, "id" | "timestamp">) => void;
   setInput: (value: string) => void;
@@ -56,6 +57,7 @@ type AppState = {
   setPersonas: (personas: Persona[], defaultId: string) => void;
   setActivePersona: (id: string) => void;
   setAvatarHints: (emotion?: string, gesture?: string) => void;
+  setLanguage: (language: string) => void;
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -73,6 +75,7 @@ export const useAppStore = create<AppState>((set) => ({
   activePersonaId: null,
   emotion: "neutral",
   gesture: "idle",
+  language: "auto",
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   addTranscript: (entry) =>
     set((state) => {
@@ -117,6 +120,7 @@ export const useAppStore = create<AppState>((set) => ({
       emotion: emotion ?? state.emotion,
       gesture: gesture ?? state.gesture,
     })),
+  setLanguage: (language) => set({ language }),
 }));
 
 export const selectActivePersona = (state: AppState) =>

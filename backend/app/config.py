@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str | None = None
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     elevenlabs_output_format: str = "mp3_44100_128"
+    # Used for personas that don't define their own cloned voice_id.
+    elevenlabs_default_voice_id: str | None = None
 
     default_persona: str = "hod"
     personas_path: Path = Path(__file__).resolve().parent / "data" / "personas.json"

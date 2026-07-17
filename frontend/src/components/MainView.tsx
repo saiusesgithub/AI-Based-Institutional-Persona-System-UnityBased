@@ -14,6 +14,7 @@ export const MainView = () => {
   const { sendMessage, sendBinary, sendEvent } = useAvatarSocket();
   const addTranscript = useAppStore((state) => state.addTranscript);
   const activePersonaId = useAppStore((state) => state.activePersonaId);
+  const language = useAppStore((state) => state.language);
 
   usePersonas();
 
@@ -21,7 +22,7 @@ export const MainView = () => {
     sendChunk: sendBinary,
     sendEvent,
     persona: activePersonaId ?? undefined,
-    language: "auto",
+    language,
     includeAudio: true,
   });
 
@@ -59,6 +60,7 @@ export const MainView = () => {
       type: "chat",
       message,
       persona: activePersonaId,
+      language,
       include_audio: true,
     });
     addTranscript({ role: "user", text: message });

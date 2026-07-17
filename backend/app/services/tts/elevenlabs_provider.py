@@ -19,18 +19,24 @@ class ElevenLabsTTSProvider(TTSProvider):
         self._api_key = settings.elevenlabs_api_key
         self._model_id = settings.elevenlabs_model_id
         self._output_format = settings.elevenlabs_output_format
+        self._default_voice_id = settings.elevenlabs_default_voice_id
         self._timeout = settings.request_timeout_seconds
 
-    async def synthesize(self, text: str, persona: Persona) -> TTSResult:
+    async def synthesize(self, text: str, persona: Persona, language: str = "auto") -> TTSResult:
+        # eleven_multilingual_v2 detects the language from the text itself, so `language`
+        # needs no explicit handling here.
         if not self._api_key:
             raise ProviderConfigurationError("ELEVENLABS_API_KEY is required for ElevenLabs TTS")
-        if not persona.voice_id:
-            raise ProviderConfigurationError(f"Persona '{persona.id}' does not define an ElevenLabs voice_id")
+        voice_id = persona.voice_id or self._default_voice_id
+        if not voice_id:
+            raise ProviderConfigurationError(
+                f"Persona '{persona.id}' has no voice_id and ELEVENLABS_DEFAULT_VOICE_ID is unset"
+            )
 
         # `with-timestamps` returns JSON (base64 audio + per-character alignment) rather
         # than raw audio bytes. The alignment is what makes real lipsync possible.
         endpoint = (
-            f"https://api.elevenlabs.io/v1/text-to-speech/{persona.voice_id}/with-timestamps"
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
             f"?output_format={self._output_format}"
         )
         payload = {
@@ -58,7 +64,7 @@ class ElevenLabsTTSProvider(TTSProvider):
         return TTSResult(
             audio=audio,
             provider=self.name,
-            voice_id=persona.voice_id,
+            voice_id=voice_id,
             content_type="audio/mpeg",
             visemes=_extract_visemes(data),
         )

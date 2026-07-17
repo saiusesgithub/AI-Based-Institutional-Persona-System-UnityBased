@@ -18,6 +18,8 @@ export const ControlsBar = ({ onSend, onHoldStart, onHoldEnd }: ControlsBarProps
   const micError = useAppStore((state) => state.micError);
   const setInput = useAppStore((state) => state.setInput);
   const toggleMuted = useAppStore((state) => state.toggleMuted);
+  const language = useAppStore((state) => state.language);
+  const setLanguage = useAppStore((state) => state.setLanguage);
 
   const micStatusLabel =
     micState === "recording"
@@ -105,6 +107,17 @@ export const ControlsBar = ({ onSend, onHoldStart, onHoldEnd }: ControlsBarProps
       </div>
 
       <div className="control-group">
+        <select
+          className="language-select"
+          value={language}
+          onChange={(event) => setLanguage(event.target.value)}
+          aria-label="Conversation language"
+        >
+          <option value="auto">Auto language</option>
+          <option value="en">English</option>
+          <option value="hi">हिन्दी</option>
+          <option value="te">తెలుగు</option>
+        </select>
         <ConnectionStatus />
         <div className="status-dot" data-state={micStatusState} title={micError ?? undefined}>
           <span />

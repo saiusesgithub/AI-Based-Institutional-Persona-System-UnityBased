@@ -131,6 +131,20 @@ input {
   color: #fca5a5;
 }
 
+.language-select {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.language-select:focus-visible {
+  outline: 2px solid var(--focus);
+}
+
 .persona-switcher {
   display: flex;
   gap: 10px;

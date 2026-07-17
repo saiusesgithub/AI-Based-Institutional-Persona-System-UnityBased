@@ -12,7 +12,9 @@
     "model_url": "/avatars/hod.glb",
     "accent_color": "#6366f1",
     "metadata": {
-      "edge_voice": "en-IN-PrabhatNeural"
+      "edge_voice": "en-IN-PrabhatNeural",
+      "edge_voice_hi": "hi-IN-MadhurNeural",
+      "edge_voice_te": "te-IN-MohanNeural"
     }
   },
   {
@@ -25,10 +27,12 @@
     "voice_id": null,
     "default_emotion": "serious",
     "default_gesture": "explaining",
-    "model_url": "/avatars/avaturn.glb",
+    "model_url": "/avatars/chairman.glb",
     "accent_color": "#b45309",
     "metadata": {
-      "edge_voice": "en-GB-RyanNeural"
+      "edge_voice": "en-GB-RyanNeural",
+      "edge_voice_hi": "hi-IN-MadhurNeural",
+      "edge_voice_te": "te-IN-MohanNeural"
     }
   },
   {
@@ -41,10 +45,12 @@
     "voice_id": null,
     "default_emotion": "welcoming",
     "default_gesture": "greeting",
-    "model_url": "/avatars/avaturn.glb",
+    "model_url": "/avatars/reception.glb",
     "accent_color": "#0ea5e9",
     "metadata": {
-      "edge_voice": "en-IN-NeerjaExpressiveNeural"
+      "edge_voice": "en-IN-NeerjaExpressiveNeural",
+      "edge_voice_hi": "hi-IN-SwaraNeural",
+      "edge_voice_te": "te-IN-ShrutiNeural"
     }
   },
   {
@@ -57,10 +63,12 @@
     "voice_id": null,
     "default_emotion": "encouraging",
     "default_gesture": "explaining",
-    "model_url": "/avatars/hod.glb",
+    "model_url": "/avatars/guide.glb",
     "accent_color": "#059669",
     "metadata": {
-      "edge_voice": "en-IN-NeerjaNeural"
+      "edge_voice": "en-IN-NeerjaNeural",
+      "edge_voice_hi": "hi-IN-SwaraNeural",
+      "edge_voice_te": "te-IN-ShrutiNeural"
     }
   }
 ]
