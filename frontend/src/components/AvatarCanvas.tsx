@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Environment, OrbitControls } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { AvatarModel } from "@/components/AvatarModel";
 import { useAppStore, selectActivePersona } from "@/store/useAppStore";
 
@@ -27,7 +27,6 @@ export const AvatarCanvas = () => {
       <Suspense fallback={null}>
         {/* Keyed so switching persona mounts a fresh model instead of mutating the old one. */}
         <AvatarModel key={modelUrl} modelUrl={modelUrl} />
-        <Environment preset="studio" environmentIntensity={0.5} />
       </Suspense>
       <OrbitControls
         enablePan

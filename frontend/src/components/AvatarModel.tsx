@@ -4,6 +4,7 @@ import { useAnimations, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { useAudioStore } from "@/store/useAudioStore";
 import { useAppStore } from "@/store/useAppStore";
 import { useBlink } from "@/hooks/useBlink";
@@ -70,25 +71,64 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   const { animations: sharedAnimations } = useGLTF("/avatars/animations.glb");
   const blink = useBlink();
 
-  // Cloned so two personas sharing one GLB get independent morph state.
-  const model = useMemo(() => scene.clone(true), [scene]);
+  // SkeletonUtils.clone, NOT scene.clone(): a naive clone leaves skinned meshes bound to
+  // the original skeleton, so animations play but the mesh never moves (T-pose forever).
+  // Then auto-frame: vendors export at wildly different scales and origins, so measure the
+  // model and normalize it to the framing the camera is aimed at (target y≈1.45, feet at
+  // -1.9, height ≈3.4 world units) instead of trusting the file.
+  const model = useMemo(() => {
+    const cloned = cloneSkinned(scene);
+    const box = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    if (size.y > 0.0001) {
+      const scale = 3.4 / size.y;
+      cloned.scale.setScalar(scale);
+      cloned.position.set(
+        -center.x * scale,
+        -1.9 - box.min.y * scale,
+        -center.z * scale,
+      );
+    }
+    return cloned;
+  }, [scene]);
 
-  // Shared clips win over anything baked into the model: an Avaturn export may carry a
-  // static showcase clip that would otherwise lock the avatar out of Idle/Talking motion.
-  const clips = sharedAnimations.length > 0 ? sharedAnimations : animations;
+  // Both clip sets are offered to the mixer. A model's own baked idle is authored for that
+  // exact body, so it wins as the resting loop; the shared mocap Talking clips still add
+  // hand gestures during speech. Shared tracks aimed at bones this rig lacks (fingertip /
+  // toe-tip helpers) are pruned, else three.js logs a warning per missing bone per clip.
+  const clips = useMemo(() => {
+    const nodeNames = new Set<string>();
+    model.traverse((child) => nodeNames.add(child.name));
+    // Rotation tracks only. Position/scale tracks in baked clips are authored in the source
+    // tool's units and origin — played on a rig that disagrees, they teleport or rescale
+    // the body out of the camera. Rotations are unit-free and safe on any matching rig.
+    const sanitize = (clip: THREE.AnimationClip) => {
+      const copy = clip.clone();
+      copy.tracks = copy.tracks.filter(
+        (track) => nodeNames.has(track.name.split(".")[0]) && track.name.endsWith(".quaternion"),
+      );
+      return copy;
+    };
+    return [...animations, ...sharedAnimations].map(sanitize).filter((clip) => clip.tracks.length > 0);
+  }, [animations, sharedAnimations, model]);
+
   const { actions } = useAnimations(clips, groupRef);
-  const hasIdleClip = Boolean(actions["Idle"]);
+  const idleName = animations[0]?.name ?? "Idle";
+  const hasIdleClip = Boolean(actions[idleName]);
   const speakingClip = useRef(false);
   const activeTalking = useRef<string>("Talking_1");
 
   useEffect(() => {
-    const entry = actions["Idle"] ?? Object.values(actions)[0];
+    const entry = actions[idleName] ?? Object.values(actions)[0];
     entry?.reset().fadeIn(0.4).play();
     speakingClip.current = false;
     return () => {
       entry?.fadeOut(0.2);
     };
-  }, [actions]);
+  }, [actions, idleName]);
 
   // Resolved once per model: viseme id → morph index for each mesh, tried against every
   // vendor naming (viseme_aa / aa / ih…), so lookup at 60fps is pure index math.
@@ -158,7 +198,7 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
     if (hasIdleClip) {
       const audiblySpeaking = sample.active || amplitude > 0.05;
       quietSeconds.current = audiblySpeaking ? 0 : quietSeconds.current + delta;
-      const idle = actions["Idle"];
+      const idle = actions[idleName];
       if (idle) {
         if (audiblySpeaking && !speakingClip.current) {
           // A different gesture clip per utterance keeps long demos from looking canned.
@@ -276,7 +316,9 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
     });
   });
 
-  return <primitive ref={groupRef} object={model} position={[0, -1.9, 0]} />;
+  // No position prop: placement is computed during auto-framing, and a prop here would
+  // overwrite it every render.
+  return <primitive ref={groupRef} object={model} />;
 };
 
 useGLTF.preload("/avatars/hod.glb");
