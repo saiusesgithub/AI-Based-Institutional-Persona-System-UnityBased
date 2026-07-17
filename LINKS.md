@@ -1,0 +1,12 @@
+https://sketchfab.com/3d-models/new-york-city-4737b6ee73ed4634ad5b414558fdfa45
+https://sketchfab.com/3d-models/ruined-city-free-4b0b0021d91442079a91b075576efe4e
+https://sketchfab.com/3d-models/post-apocalypse-derby-car-olpen-aster-33bb1895a756463dab741cb25ac844ce
+https://gltf-viewer.donmccurdy.com/
+https://www.google.com/search?q=modi+3d+model+glb&oq=modi+3d+model+glb&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIHCAEQIRiPAjIHCAIQIRiPAtIBCDQ0NDZqMGo3qAIAsAIA&sourceid=chrome&source=chrome.ob&ie=UTF-8
+https://www.meshy.ai/3d-models/narendra-modi-v2-019c7c03-340b-782b-9851-a009917e60b4
+https://sketchfab.com/3d-models/narendra-damodardas-modi-255ceb8d811c46358d9026668d1985e7
+https://sketchfab.com/3d-models/narendra-modi-fully-rigged-character-c8991e9325e74da8aca8087e3afd935e
+https://www.reddit.com/r/ClaudeAI/comments/1uutku5/fable_vs_opus_vs_gpt_56_sol_vs_gemini_35_vs/
+https://www.google.com/search?q=a+person+3d+model+with+blendshapes+free+%28only+face+blendshapes+required%29&sca_esv=cddd62cdcec56474&biw=1366&bih=651&ei=ItNZaobEMr2VseMPpba8mQI&uact=5&sclient=gws-wiz-serp&udm=50&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832a9BVCEiB2iPJNekNderQwLP8msUKsz-6AMxGyueJZ9cK2mNBy2II_6WvkKSZWdegvvKnEPeeArWgEP9exNATg6oybL0Q4MEKOxPxFbct-gPoxJydwQkFVgNkm6vNXPQZjfoWDOyzkktih_Z6lssQmfbdqIKqxUyGROmvXoo-iyz5AhpVQ&aep=10&ntc=1&mstk=AUtExfCRgpUntcoHeqsfdg08UJXS9wGNndyRESSP1mOJeSTggZ--u3AxIaykkWVt7q9xnLD9dsICLKPTOHDLhv9FW1RSqGNQpMWy5JPxV4eqYILEvo3ztDnke9UPKaCvvulbaBbWIb3ZVUyLmdkkz8xFGK7t8SjT2CdEj7Y&aioh=3&csuir=1&cs=0&mtid=FtRZaovSH6HdseMPoKGsOA
+https://news.productioncrate.com/free-3d-facial-expression-blendshapes-pack/
+https://github.com/USC-ICT/ICT-FaceKit
