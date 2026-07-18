@@ -4,6 +4,7 @@ import { Stage } from "@/components/Stage";
 import { TranscriptPanel } from "@/components/TranscriptPanel";
 import { ControlsBar } from "@/components/ControlsBar";
 import { PersonaSwitcher } from "@/components/PersonaSwitcher";
+import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { DebugPanel } from "@/components/DebugPanel";
 import { useCallback, useEffect } from "react";
 import { useAvatarSocket } from "@/hooks/useAvatarSocket";
@@ -33,7 +34,7 @@ export const MainView = () => {
       return element?.tagName === "INPUT" || element?.tagName === "TEXTAREA";
     };
 
-    // Hold "A" to talk: press starts capture, release ends the turn.
+    // Hold "A" to talk — keyboard twin of the on-screen hold button.
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || event.code !== "KeyA" || isTypingTarget(event.target)) {
         return;
@@ -66,25 +67,25 @@ export const MainView = () => {
     });
     addTranscript({ role: "user", text: message });
     if (!ok) {
-      addTranscript({ role: "system", text: "Socket offline. Message queued locally." });
+      addTranscript({ role: "system", text: "Connection lost — reconnecting..." });
     }
   };
 
   const handlePersonaSwitch = useCallback(
     (personaId: string) => {
-      // The backend keeps its own per-connection persona and history; keep them in step.
       sendMessage({ type: "persona", persona: personaId });
     },
     [sendMessage],
   );
 
   return (
-    <main className="app-shell">
+    <main className="call-shell">
       <Stage />
+      <ConnectionStatus />
       <PersonaSwitcher onSwitch={handlePersonaSwitch} />
-      <DebugPanel />
       <TranscriptPanel />
       <ControlsBar onSend={handleSend} onHoldStart={() => void start()} onHoldEnd={stop} />
+      <DebugPanel />
     </main>
   );
 };

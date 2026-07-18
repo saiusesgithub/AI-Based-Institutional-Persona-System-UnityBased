@@ -2,62 +2,49 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store/useAppStore";
-import { useEffect, useRef } from "react";
 
+/**
+ * Video-call style live captions: the last couple of lines float over the video, and
+ * listening/thinking states show as a subtle pill. No log, no headings, no jargon.
+ */
 export const TranscriptPanel = () => {
   const transcript = useAppStore((state) => state.transcript);
-  const micError = useAppStore((state) => state.micError);
   const micState = useAppStore((state) => state.micState);
 
-  const liveLine =
-    micState === "recording" || micState === "listening"
+  const statusPill =
+    micState === "recording"
       ? "Listening..."
       : micState === "processing"
-      ? "Processing..."
+      ? "Thinking..."
       : null;
 
-  const streamRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (streamRef.current) {
-      streamRef.current.scrollTop = streamRef.current.scrollHeight;
-    }
-  }, [transcript, liveLine, micError]);
+  const lines = transcript.filter((line) => line.role !== "system").slice(-2);
+  const lastError = transcript.filter((line) => line.role === "system").slice(-1)[0];
+  const showError = Boolean(lastError) && micState === "error";
 
   return (
-    <section className="transcript">
-      <h2>Live transcript</h2>
-      <div className="transcript-stream" ref={streamRef}>
-        <AnimatePresence initial={false}>
-          {transcript.map((line) => (
-            <motion.div
-              key={line.id}
-              className="transcript-line"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-            >
-              <strong>{line.role === "user" ? "You" : "Persona"}:</strong> {line.text}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        {transcript.length === 0 ? (
-          <div className="transcript-line">
-            <strong>System:</strong> Waiting for the first message...
-          </div>
-        ) : null}
-        {micError ? (
-          <div className="transcript-line">
-            <strong>System:</strong> {micError}
-          </div>
-        ) : null}
-        {liveLine ? (
-          <div className="transcript-line">
-            <strong>System:</strong> {liveLine}
-          </div>
-        ) : null}
-      </div>
-    </section>
+    <div className="captions" aria-live="polite">
+      <AnimatePresence initial={false}>
+        {lines.map((line) => (
+          <motion.p
+            key={line.id}
+            className={`caption ${line.role === "user" ? "caption-user" : "caption-persona"}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            {line.text}
+          </motion.p>
+        ))}
+      </AnimatePresence>
+      {showError ? <p className="caption caption-error">{lastError.text}</p> : null}
+      {statusPill ? (
+        <div className="caption-status">
+          <span className="caption-status-pulse" aria-hidden="true" />
+          {statusPill}
+        </div>
+      ) : null}
+    </div>
   );
 };

@@ -1,7 +1,7 @@
 "use client";
 
+import { useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { ConnectionStatus } from "@/components/ConnectionStatus";
 
 type ControlsBarProps = {
   onSend: (message: string) => void;
@@ -9,54 +9,78 @@ type ControlsBarProps = {
   onHoldEnd: () => void;
 };
 
+const LANGUAGES = [
+  { value: "auto", label: "Auto" },
+  { value: "en", label: "EN" },
+  { value: "hi", label: "हि" },
+  { value: "te", label: "తె" },
+];
+
+/**
+ * Video-call control bar: one big hold-to-talk button front and center, a keyboard
+ * toggle for typed questions, and a language pill. Everything sized for fingers.
+ */
 export const ControlsBar = ({ onSend, onHoldStart, onHoldEnd }: ControlsBarProps) => {
   const input = useAppStore((state) => state.input);
   const listening = useAppStore((state) => state.listening);
-  const muted = useAppStore((state) => state.muted);
-  const micPermission = useAppStore((state) => state.micPermission);
   const micState = useAppStore((state) => state.micState);
-  const micError = useAppStore((state) => state.micError);
+  const micPermission = useAppStore((state) => state.micPermission);
   const setInput = useAppStore((state) => state.setInput);
-  const toggleMuted = useAppStore((state) => state.toggleMuted);
   const language = useAppStore((state) => state.language);
   const setLanguage = useAppStore((state) => state.setLanguage);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
 
-  const micStatusLabel =
-    micState === "recording"
-      ? "Recording"
-      : micState === "processing"
-      ? "Processing"
-      : micState === "requesting_permission"
-      ? "Requesting mic"
-      : micState === "listening"
-      ? "Listening"
-      : micState === "disconnected"
-      ? "Disconnected"
-      : micState === "error"
-      ? "Mic error"
-      : micPermission === "granted"
-      ? "Mic ready"
-      : "Mic blocked";
-
-  const micStatusState =
-    micState === "error" || micPermission === "denied" ? "error" : micPermission === "granted" ? "open" : "closed";
+  const micBlocked = micPermission === "denied" || micPermission === "error";
 
   const handleSend = () => {
-    if (!input.trim()) {
+    const message = input.trim();
+    if (!message) {
       return;
     }
-    onSend(input.trim());
+    onSend(message);
     setInput("");
   };
 
   return (
-    <section className="controls">
-      <div className="control-group">
+    <>
+      {keyboardOpen ? (
+        <div className="type-drawer">
+          <input
+            autoFocus
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                handleSend();
+              }
+            }}
+            placeholder="Type your question..."
+          />
+          <button type="button" className="type-send" onClick={handleSend} disabled={!input.trim()}>
+            Send
+          </button>
+        </div>
+      ) : null}
+
+      <div className="call-bar">
+        <div className="lang-pills" role="radiogroup" aria-label="Language">
+          {LANGUAGES.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={language === value}
+              className={`lang-pill${language === value ? " is-active" : ""}`}
+              onClick={() => setLanguage(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <button
           type="button"
-          className={`control-button push-to-talk ${listening ? "active" : ""}`}
-          // Hold to speak: press starts recording, release sends the turn. pointerleave and
-          // pointercancel also end it so a drag off the button can't leave the mic stuck open.
+          className={`talk-button${listening ? " is-recording" : ""}${micBlocked ? " is-blocked" : ""}`}
           onPointerDown={(event) => {
             event.preventDefault();
             event.currentTarget.setPointerCapture(event.pointerId);
@@ -66,64 +90,30 @@ export const ControlsBar = ({ onSend, onHoldStart, onHoldEnd }: ControlsBarProps
           onPointerCancel={onHoldEnd}
           onContextMenu={(event) => event.preventDefault()}
           aria-label="Hold to speak"
-          title="Hold to speak (or hold A)"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 1 1-6 0V6a3 3 0 0 1 3-3Z" />
             <path d="M19 11a7 7 0 0 1-14 0" />
             <path d="M12 18v3" />
           </svg>
-          <span className="push-to-talk-label">{listening ? "Release to send" : "Hold to speak"}</span>
+          <span className="talk-button-label">
+            {micBlocked ? "Mic unavailable" : listening ? "Release to send" : micState === "processing" ? "Thinking..." : "Hold to talk"}
+          </span>
         </button>
+
         <button
           type="button"
-          className={`control-button ${muted ? "active" : ""}`}
-          onClick={toggleMuted}
-          aria-label="Toggle mute"
+          className={`round-button${keyboardOpen ? " is-active" : ""}`}
+          onClick={() => setKeyboardOpen((open) => !open)}
+          aria-label="Type instead"
+          aria-pressed={keyboardOpen}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <path d="M9 9v6" />
-            <path d="M9 9c0-1.66 1.34-3 3-3" />
-            <path d="M12 6c1.66 0 3 1.34 3 3v6" />
-            <path d="M5 5l14 14" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+            <rect x="3" y="7" width="18" height="11" rx="2" />
+            <path d="M7 11h.01M11 11h.01M15 11h.01M7 14.5h.01M17 14.5h.01M10 14.5h4" />
           </svg>
         </button>
       </div>
-
-      <div className="input-shell">
-        <input
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              handleSend();
-            }
-          }}
-          placeholder="Type a message..."
-        />
-        <button className="send-button" onClick={handleSend} disabled={!input.trim()}>
-          Send
-        </button>
-      </div>
-
-      <div className="control-group">
-        <select
-          className="language-select"
-          value={language}
-          onChange={(event) => setLanguage(event.target.value)}
-          aria-label="Conversation language"
-        >
-          <option value="auto">Auto language</option>
-          <option value="en">English</option>
-          <option value="hi">हिन्दी</option>
-          <option value="te">తెలుగు</option>
-        </select>
-        <ConnectionStatus />
-        <div className="status-dot" data-state={micStatusState} title={micError ?? undefined}>
-          <span />
-          {micStatusLabel}
-        </div>
-      </div>
-    </section>
+    </>
   );
 };

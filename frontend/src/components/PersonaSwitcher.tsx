@@ -7,6 +7,16 @@ type PersonaSwitcherProps = {
   onSwitch: (personaId: string) => void;
 };
 
+const initialsOf = (name: string) =>
+  name
+    .split(" ")
+    .filter((part) => part && !part.endsWith("."))
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || name.slice(0, 2).toUpperCase();
+
+/** Participants-style strip: big touch tiles, one per persona. */
 export const PersonaSwitcher = ({ onSwitch }: PersonaSwitcherProps) => {
   const personas = useAppStore((state) => state.personas);
   const activePersonaId = useAppStore((state) => state.activePersonaId);
@@ -20,34 +30,31 @@ export const PersonaSwitcher = ({ onSwitch }: PersonaSwitcherProps) => {
     if (personaId === activePersonaId) {
       return;
     }
-    // Cut off the outgoing persona mid-sentence; they are no longer on screen.
     stopAudio();
     setActivePersona(personaId);
     onSwitch(personaId);
   };
 
   return (
-    <div className="persona-switcher" role="tablist" aria-label="Choose a persona">
+    <nav className="persona-strip" aria-label="Choose who to talk to">
       {personas.map((persona) => {
         const active = persona.id === activePersonaId;
         return (
           <button
             key={persona.id}
             type="button"
-            role="tab"
-            aria-selected={active}
-            className={`persona-chip${active ? " is-active" : ""}`}
+            className={`persona-tile${active ? " is-active" : ""}`}
             style={{ "--persona-accent": persona.accent_color } as React.CSSProperties}
             onClick={() => handleSelect(persona.id)}
+            aria-pressed={active}
           >
-            <span className="persona-chip-dot" aria-hidden="true" />
-            <span className="persona-chip-text">
-              <span className="persona-chip-name">{persona.display_name}</span>
-              <span className="persona-chip-role">{persona.role}</span>
+            <span className="persona-tile-avatar" aria-hidden="true">
+              {initialsOf(persona.display_name)}
             </span>
+            <span className="persona-tile-name">{persona.display_name}</span>
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 };
