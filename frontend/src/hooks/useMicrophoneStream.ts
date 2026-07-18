@@ -25,6 +25,37 @@ type UseMicrophoneStreamOptions = {
 
 /** How often audio is flushed to the server while the button is held. */
 const CHUNK_MS = 500;
+const MIN_RECORDING_SECONDS = 0.55;
+const MIN_RMS = 0.012;
+
+const getAudioAnalysis = async (blob: Blob) => {
+  const audioWindow = window as typeof window & { webkitAudioContext?: typeof AudioContext };
+  const AudioContextCtor = window.AudioContext || audioWindow.webkitAudioContext;
+  if (!AudioContextCtor) {
+    return null;
+  }
+  const context = new AudioContextCtor();
+  try {
+    const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+    let sum = 0;
+    let samples = 0;
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const data = buffer.getChannelData(channel);
+      for (let i = 0; i < data.length; i += 1) {
+        sum += data[i] * data[i];
+      }
+      samples += data.length;
+    }
+    return {
+      duration: buffer.duration,
+      rms: samples > 0 ? Math.sqrt(sum / samples) : 0,
+    };
+  } catch {
+    return null;
+  } finally {
+    void context.close();
+  }
+};
 
 /**
  * Push-to-talk microphone capture.
@@ -50,6 +81,7 @@ export const useMicrophoneStream = ({
   const streamRef = useRef<MediaStream | null>(null);
   const startInProgress = useRef(false);
   const sentAnyAudio = useRef(false);
+  const chunksRef = useRef<Blob[]>([]);
 
   // Latched so the recorder callbacks always see current values without being re-created.
   const optionsRef = useRef({ persona, language, includeAudio, sendChunk, sendEvent });
@@ -135,6 +167,7 @@ export const useMicrophoneStream = ({
       const contentType = (mimeType || "audio/webm").split(";")[0];
       const filename = contentType.includes("ogg") ? "audio.ogg" : "audio.webm";
       sentAnyAudio.current = false;
+      chunksRef.current = [];
 
       const { sendEvent: emit, persona: p, language: lang, includeAudio: audio } = optionsRef.current;
       emit({
@@ -150,6 +183,7 @@ export const useMicrophoneStream = ({
         if (event.data.size === 0) {
           return;
         }
+        chunksRef.current.push(event.data);
         if (optionsRef.current.sendChunk(event.data)) {
           sentAnyAudio.current = true;
         }
@@ -169,15 +203,28 @@ export const useMicrophoneStream = ({
 
       // Fires after the final ondataavailable, so the whole utterance is on the wire.
       recorder.onstop = () => {
-        if (sentAnyAudio.current) {
-          setMicState("processing");
-          optionsRef.current.sendEvent({ type: "stt_commit" });
-        } else {
-          setMicError("No audio captured from microphone.");
-          setMicState("idle");
-        }
-        setListening(false);
-        teardown();
+        void (async () => {
+          if (sentAnyAudio.current) {
+            const recording = new Blob(chunksRef.current, { type: mimeType || contentType });
+            const analysis = await getAudioAnalysis(recording);
+            if (analysis && (analysis.duration < MIN_RECORDING_SECONDS || analysis.rms < MIN_RMS)) {
+              optionsRef.current.sendEvent({ type: "stt_cancel" });
+              setMicError("I could not hear that clearly. Hold the mic button and speak a little longer.");
+              setMicState("idle");
+            } else {
+              setMicError(null);
+              setMicState("processing");
+              optionsRef.current.sendEvent({ type: "stt_commit" });
+            }
+          } else {
+            optionsRef.current.sendEvent({ type: "stt_cancel" });
+            setMicError("No audio captured from microphone.");
+            setMicState("idle");
+          }
+          chunksRef.current = [];
+          setListening(false);
+          teardown();
+        })();
       };
 
       stream.getTracks().forEach((track) => {

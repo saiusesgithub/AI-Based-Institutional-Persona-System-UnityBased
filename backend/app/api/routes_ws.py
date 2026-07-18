@@ -143,8 +143,17 @@ async def websocket_endpoint(
                 await send_json({"type": "stt_status", "state": "recording"})
                 continue
 
+            if msg_type == "stt_cancel":
+                audio_buffer = bytearray()
+                await send_json({"type": "stt_status", "state": "empty"})
+                continue
+
             if msg_type == "stt_commit":
                 if not audio_buffer:
+                    await send_json({"type": "stt_status", "state": "empty"})
+                    continue
+                if len(audio_buffer) < 2500:
+                    audio_buffer = bytearray()
                     await send_json({"type": "stt_status", "state": "empty"})
                     continue
 

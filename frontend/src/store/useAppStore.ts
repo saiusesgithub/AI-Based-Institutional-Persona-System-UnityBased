@@ -75,7 +75,7 @@ export const useAppStore = create<AppState>((set) => ({
   activePersonaId: null,
   emotion: "neutral",
   gesture: "idle",
-  language: "auto",
+  language: "en",
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   addTranscript: (entry) =>
     set((state) => {

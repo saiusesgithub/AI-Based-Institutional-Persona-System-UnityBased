@@ -7,14 +7,11 @@ from app.core.errors import ProviderConfigurationError, ProviderRuntimeError
 from app.services.stt.base import STTProvider, STTResult
 
 
-# Whisper biases recognition toward the vocabulary in `prompt`. Institution names, campus
-# terms, and the personas' names are exactly the words it otherwise garbles.
+# Whisper prompts bias recognition. Keep this short: an aggressive domain prompt can make
+# weak or silent audio hallucinate college terms.
 DOMAIN_PROMPT = (
-    "VJIT, Vidya Jyothi Institute of Technology, Hyderabad, JNTUH, Telangana, "
-    "Dr. Obulesu, Dr. Srujana, Dr. Padmaja, Palla Rajeshwar Reddy, "
-    "B.Tech, M.Tech, MBA, CSE, ECE, EEE, IT, Data Science, AI and ML, Civil, Mechanical, "
-    "placements, admissions, hostel, campus, department, faculty, semester, fees, "
-    "NAAC, NBA, autonomous, counselling, EAMCET, scholarship."
+    "VJIT, Vidya Jyothi Institute of Technology, Hyderabad. "
+    "The speaker may ask about admissions, placements, departments, fees, hostel, campus, or scholarships."
 )
 
 
