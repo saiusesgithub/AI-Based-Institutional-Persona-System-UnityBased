@@ -7,6 +7,17 @@ from app.core.errors import ProviderConfigurationError, ProviderRuntimeError
 from app.services.stt.base import STTProvider, STTResult
 
 
+# Whisper biases recognition toward the vocabulary in `prompt`. Institution names, campus
+# terms, and the personas' names are exactly the words it otherwise garbles.
+DOMAIN_PROMPT = (
+    "VJIT, Vidya Jyothi Institute of Technology, Hyderabad, JNTUH, Telangana, "
+    "Dr. Obulesu, Dr. Srujana, Dr. Padmaja, Palla Rajeshwar Reddy, "
+    "B.Tech, M.Tech, MBA, CSE, ECE, EEE, IT, Data Science, AI and ML, Civil, Mechanical, "
+    "placements, admissions, hostel, campus, department, faculty, semester, fees, "
+    "NAAC, NBA, autonomous, counselling, EAMCET, scholarship."
+)
+
+
 class GroqWhisperProvider(STTProvider):
     name = "groq_whisper"
 
@@ -22,7 +33,13 @@ class GroqWhisperProvider(STTProvider):
         if not audio:
             raise ProviderRuntimeError("Audio payload is empty")
 
-        data = {"model": self._model, "response_format": "json"}
+        data = {
+            "model": self._model,
+            "response_format": "json",
+            # Deterministic decoding: sampling noise on short clips causes wild misreads.
+            "temperature": "0",
+            "prompt": DOMAIN_PROMPT,
+        }
         if language and language != "auto":
             data["language"] = language
 

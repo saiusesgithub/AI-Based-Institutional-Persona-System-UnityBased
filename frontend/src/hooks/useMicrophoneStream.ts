@@ -100,7 +100,16 @@ export const useMicrophoneStream = ({
       }
 
       setMicState("requesting_permission");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Cleaned, gain-normalized mono. Matters a lot in a noisy expo hall — and echo
+      // cancellation stops the avatar's own voice from bleeding into the transcript.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
       streamRef.current = stream;
       setMicPermission("granted");
       setMicError(null);
@@ -108,7 +117,12 @@ export const useMicrophoneStream = ({
       const mimeType = pickMimeType();
       let recorder: MediaRecorder;
       try {
-        recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        // 128kbps opus: browsers may default far lower, and Whisper accuracy tracks
+        // audio quality directly.
+        recorder = new MediaRecorder(stream, {
+          ...(mimeType ? { mimeType } : {}),
+          audioBitsPerSecond: 128_000,
+        });
       } catch {
         setMicPermission("error");
         setMicError("MediaRecorder failed to initialize.");

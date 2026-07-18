@@ -127,7 +127,13 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
   }, [animations, sharedAnimations, model]);
 
   const { actions } = useAnimations(clips, groupRef);
-  const idleName = animations[0]?.name ?? "Idle";
+  // A model's own clip is only trusted as the resting loop when it's an actual idle.
+  // Avaturn's default "avaturn_animation" is a near-static showcase pose — playing it as
+  // the idle makes the avatar stand frozen — so those models use the shared mocap Idle.
+  const ownIdle = animations.find(
+    (clip) => /idle/i.test(clip.name) && clip.name !== "avaturn_animation",
+  );
+  const idleName = ownIdle?.name ?? "Idle";
   const hasIdleClip = Boolean(actions[idleName]);
   const speakingClip = useRef(false);
   const activeTalking = useRef<string>("Talking_1");
@@ -199,10 +205,14 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
 
     // Read stores imperatively so this component never re-renders per frame.
     const { amplitude } = useAudioStore.getState();
-    const emotion = useAppStore.getState().emotion;
+    const { emotion, listening, micState } = useAppStore.getState();
 
     const sample = lipsyncTrack.sample(getAudioTime());
     const usingTimeline = lipsyncTrack.hasTimeline();
+    const userEngaged =
+      listening || micState === "recording" || micState === "listening" || micState === "processing";
+    const avatarSpeaking = sample.active || amplitude > 0.05 || speakingClip.current;
+    const directEyeContact = userEngaged || avatarSpeaking;
 
     // Crossfade Idle ↔ Talking with the audio. The hold-out before returning to Idle
     // stops the body twitching between clips during natural pauses in a sentence.
@@ -257,27 +267,31 @@ export const AvatarModel = ({ modelUrl }: { modelUrl: string }) => {
 
     blinkValue.current += (blink - blinkValue.current) * smooth(35);
 
-    // Eye saccades: quick small darts most of the time, an occasional held side glance.
-    // While speaking the gaze stays near centre — people look at who they're talking to.
+    // Lock gaze to the visitor during recording, processing, and avatar speech.
+    // Idle keeps only tiny centered eye motion.
     const gaze = gazeState.current;
-    if (now >= gaze.nextShiftAt) {
-      const speaking = speakingClip.current;
-      const sideGlance = !speaking && Math.random() < 0.25;
-      const range = speaking ? 0.25 : sideGlance ? 0.9 : 0.45;
-      gaze.targetX = (Math.random() * 2 - 1) * range;
-      gaze.targetY = (Math.random() * 2 - 1) * range * 0.4;
-      gaze.nextShiftAt = now + (sideGlance ? 1.2 + Math.random() : 1.5 + Math.random() * 4);
+    if (directEyeContact) {
+      gaze.targetX = 0;
+      gaze.targetY = 0;
+      gaze.nextShiftAt = now + 0.4;
+    } else if (now >= gaze.nextShiftAt) {
+      gaze.targetX = (Math.random() * 2 - 1) * 0.12;
+      gaze.targetY = (Math.random() * 2 - 1) * 0.05;
+      gaze.nextShiftAt = now + 2.5 + Math.random() * 4;
     }
-    gaze.x += (gaze.targetX - gaze.x) * smooth(12);
-    gaze.y += (gaze.targetY - gaze.y) * smooth(12);
+    gaze.x += (gaze.targetX - gaze.x) * smooth(directEyeContact ? 28 : 10);
+    gaze.y += (gaze.targetY - gaze.y) * smooth(directEyeContact ? 28 : 10);
 
-    // Slow whole-body reorientation so idle never reads as a statue on a turntable.
+    // Idle can breathe a little, but conversations should face straight forward.
     const drift = driftState.current;
-    if (now >= drift.nextShiftAt) {
+    if (directEyeContact) {
+      drift.target = 0;
+      drift.nextShiftAt = now + 1;
+    } else if (now >= drift.nextShiftAt) {
       drift.target = (Math.random() * 2 - 1) * 0.06;
       drift.nextShiftAt = now + 7 + Math.random() * 8;
     }
-    drift.value += (drift.target - drift.value) * smooth(0.8);
+    drift.value += (drift.target - drift.value) * smooth(directEyeContact ? 3 : 0.8);
 
     // Calibration overlay adjustments layered on top of auto-framing (identity when the
     // panel has never been touched).
