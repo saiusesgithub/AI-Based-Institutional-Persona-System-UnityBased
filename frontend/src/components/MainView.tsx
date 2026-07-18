@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import { Stage } from "@/components/Stage";
 import { TranscriptPanel } from "@/components/TranscriptPanel";
